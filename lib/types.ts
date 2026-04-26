@@ -84,6 +84,7 @@ export type Persona = {
   id: string;
   participantId: string;
   displayName: string;
+  contextMarkdown?: string;
   summary: string;
   preferences: string[];
   constraints: string[];
@@ -110,9 +111,50 @@ export type AgentMessage = {
   speechAct: SpeechAct;
   content: string;
   proposalDelta?: string;
+  researchRefs?: string[];
+  researchSummary?: string;
   supportLevel: number;
   concernLevel: number;
 };
+
+export type ResearchToolSlot = "map.location" | "places.food" | "transport.route" | "lodging.search";
+
+export type McpToolCall = {
+  id: string;
+  slot: ResearchToolSlot;
+  serverName?: string;
+  toolName?: string;
+  query: string;
+  input: Record<string, unknown>;
+};
+
+export type McpToolResult = {
+  callId: string;
+  ok: boolean;
+  title: string;
+  summary: string;
+  url?: string;
+  raw?: unknown;
+  error?: string;
+};
+
+export type ResearchArtifact = {
+  id: string;
+  personaId: string;
+  roundIndex: number;
+  turnIndex: number;
+  destination: string;
+  query: string;
+  toolCalls: McpToolCall[];
+  toolResults: McpToolResult[];
+  summary: string;
+  sources: Array<{ title: string; url?: string; snippet: string }>;
+  createdAt: string;
+};
+
+export type ConsensusDecision =
+  | { status: "continue"; reason: string }
+  | { status: "consensus_reached"; reason: string; summary: string };
 
 export type DestinationCandidate = {
   id: string;
@@ -150,6 +192,7 @@ export type AppState = {
   personas: Persona[];
   candidates: DestinationCandidate[];
   selectedDestination: string;
+  researchArtifacts: ResearchArtifact[];
   messages: AgentMessage[];
   itinerary: Itinerary | null;
 };

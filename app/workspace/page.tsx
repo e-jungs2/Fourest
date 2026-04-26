@@ -2,293 +2,456 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import {
-  AgentMessage,
-  DestinationCandidate,
-  demoSession,
-  generateCandidates,
-  generateItinerary,
-  generateMessages,
-  generatePersonas,
-  Itinerary,
-  Persona,
-  SESSION_KEY,
-  TravelSession
-} from "@/lib/travel";
+import { createDemoSession } from "@/lib/mock";
+import { emptyState, loadState, saveState } from "@/lib/storage";
+import type { AgentMessage, AppState, DestinationCandidate, Itinerary, Persona, ResearchArtifact } from "@/lib/types";
+
+type BusyState = "idle" | "boot" | "personas" | "candidates" | "dialogue" | "itinerary" | "feedback";
+type SlotKey = "morning" | "afternoon" | "evening";
+
+const SLOT_LABELS: Record<SlotKey, string> = {
+  morning: "Morning",
+  afternoon: "Afternoon",
+  evening: "Evening"
+};
+
+async function postJson<T>(url: string, body: unknown): Promise<T> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    throw new Error(`${url} failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+async function readDialogueStream(
+  body: unknown,
+  onMessage: (message: AgentMessage) => void,
+  onResearch: (artifact: ResearchArtifact) => void
+) {
+  const response = await fetch("/api/dialogue/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok || !response.body) {
+    throw new Error(`dialogue stream failed with ${response.status}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  const messages: AgentMessage[] = [];
+  const researchArtifacts: ResearchArtifact[] = [];
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() ?? "";
+
+    for (const event of events) {
+      const eventName = event
+        .split("\n")
+        .find((line) => line.startsWith("event: "))
+        ?.slice(7);
+      const dataLine = event.split("\n").find((line) => line.startsWith("data: "));
+      if (!dataLine || dataLine === "data: {}") continue;
+      const data = JSON.parse(dataLine.slice(6)) as unknown;
+      if (eventName === "research") {
+        const artifact = data as ResearchArtifact;
+        researchArtifacts.push(artifact);
+        onResearch(artifact);
+      }
+      if (!eventName || eventName === "message") {
+        const message = data as AgentMessage;
+        messages.push(message);
+        onMessage(message);
+      }
+    }
+  }
+
+  return { messages, researchArtifacts };
+}
+
+function asPercent(value: number) {
+  const normalized = value <= 1 ? value * 100 : value;
+  return Math.max(0, Math.min(100, Math.round(normalized)));
+}
+
+function personaInitial(persona?: Persona) {
+  return (persona?.displayName || "A").charAt(0);
+}
 
 export default function WorkspacePage() {
-  const [session, setSession] = useState<TravelSession | null>(null);
-  const [personas, setPersonas] = useState<Persona[]>([]);
-  const [candidates, setCandidates] = useState<DestinationCandidate[]>([]);
-  const [selectedDestination, setSelectedDestination] = useState("");
-  const [messages, setMessages] = useState<AgentMessage[]>([]);
-  const [itinerary, setItinerary] = useState<Itinerary | null>(null);
+  const [state, setState] = useState<AppState | null>(null);
+  const [busy, setBusy] = useState<BusyState>("boot");
+  const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
 
-  useEffect(() => {
-    const raw = localStorage.getItem(SESSION_KEY);
-    const loaded = raw ? (JSON.parse(raw) as TravelSession) : demoSession();
-    setSession(loaded);
-    const nextPersonas = generatePersonas(loaded);
-    setPersonas(nextPersonas);
-    const nextCandidates = loaded.destinationStatus === "undecided" ? generateCandidates(nextPersonas) : [];
-    setCandidates(nextCandidates);
-    const destination = loaded.destinationStatus === "fixed" ? loaded.destination : nextCandidates[0]?.name || "강릉";
-    setSelectedDestination(destination);
-    setMessages(generateMessages(nextPersonas, destination));
-    setItinerary(generateItinerary(loaded, destination));
-  }, []);
-
-  const completedCount = useMemo(() => session?.participants.filter((participant) => participant.completed).length ?? 0, [session]);
+  const session = state?.session ?? null;
+  const completedCount = useMemo(
+    () => session?.participants.filter((participant) => participant.completed).length ?? 0,
+    [session]
+  );
   const allCompleted = Boolean(session && completedCount === session.participants.length);
 
-  function persistSession(nextSession: TravelSession) {
-    setSession(nextSession);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession));
-  }
+  useEffect(() => {
+    let cancelled = false;
 
-  function regenerate(destination = selectedDestination) {
-    if (!session) return;
-    const nextMessages = generateMessages(personas, destination);
-    setMessages(
-      feedback
-        ? [
-            ...nextMessages,
-            {
-              id: `feedback-${Date.now()}`,
-              speakerId: "system",
-              speakerType: "system",
-              speechAct: "validate",
-              content: `피드백 반영: "${feedback}" 요청을 기준으로 일정 밀도와 식사 배치를 다시 조정했습니다.`,
-              supportLevel: 82,
-              concernLevel: 18
-            }
-          ]
-        : nextMessages
-    );
-    setItinerary(generateItinerary(session, destination));
-    setFeedback("");
-  }
+    async function boot() {
+      const loaded = loadState();
+      const initial: AppState = loaded.session
+        ? loaded
+        : {
+            ...emptyState,
+            session: createDemoSession()
+          };
 
-  function updateDay(day: number, slot: "morning" | "afternoon" | "evening", value: string) {
-    if (!itinerary) return;
-    setItinerary({
-      ...itinerary,
-      days: itinerary.days.map((item) => (item.day === day ? { ...item, [slot]: value } : item))
+      if (cancelled) return;
+      persist(initial);
+      await generateWorkspace(initial, initial.selectedDestination);
+    }
+
+    boot().catch((err: unknown) => {
+      if (!cancelled) {
+        setError(err instanceof Error ? err.message : "Workspace generation failed.");
+        setBusy("idle");
+      }
     });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function persist(next: AppState) {
+    setState(next);
+    saveState(next);
   }
 
-  if (!session) {
-    return <main className="page">Loading...</main>;
+  async function generateWorkspace(baseState: AppState, destinationOverride?: string) {
+    const activeSession = baseState.session;
+    if (!activeSession) return;
+
+    let next = baseState;
+    setError("");
+
+    if (next.personas.length === 0) {
+      setBusy("personas");
+      const data = await postJson<{ personas: Persona[] }>("/api/personas/generate", {
+        participants: activeSession.participants
+      });
+      next = { ...next, personas: data.personas };
+      persist(next);
+    }
+
+    if (activeSession.destinationStatus === "undecided" && next.candidates.length === 0) {
+      setBusy("candidates");
+      const data = await postJson<{ candidates: DestinationCandidate[] }>("/api/destinations/generate", {
+        session: activeSession,
+        personas: next.personas
+      });
+      next = { ...next, candidates: data.candidates };
+      persist(next);
+    }
+
+    const selectedDestination =
+      destinationOverride ||
+      next.selectedDestination ||
+      activeSession.destination ||
+      next.candidates[0]?.name ||
+      "";
+
+    next = { ...next, selectedDestination, researchArtifacts: [], messages: [] };
+    persist(next);
+
+    setBusy("dialogue");
+    const streamed = await readDialogueStream(
+      {
+        session: activeSession,
+        personas: next.personas,
+        candidates: next.candidates,
+        selectedDestination
+      },
+      (message) => {
+        setState((current) => {
+          if (!current) return current;
+          return { ...current, messages: [...current.messages, message] };
+        });
+      },
+      (artifact) => {
+        setState((current) => {
+          if (!current) return current;
+          return { ...current, researchArtifacts: [...current.researchArtifacts, artifact] };
+        });
+      }
+    );
+
+    next = { ...next, messages: streamed.messages, researchArtifacts: streamed.researchArtifacts };
+    persist(next);
+
+    setBusy("itinerary");
+    const data = await postJson<{ itinerary: Itinerary }>("/api/itinerary/generate", {
+      session: activeSession,
+      personas: next.personas,
+      messages: next.messages,
+      researchArtifacts: next.researchArtifacts,
+      selectedDestination
+    });
+    next = { ...next, itinerary: data.itinerary };
+    persist(next);
+    setBusy("idle");
+  }
+
+  async function regenerate(destination = state?.selectedDestination || "") {
+    if (!state || busy !== "idle") return;
+    await generateWorkspace({ ...state, selectedDestination: destination, itinerary: null, messages: [] }, destination);
+  }
+
+  async function regenerateWithFeedback() {
+    if (!state?.session || !state.itinerary || !feedback.trim() || busy !== "idle") return;
+
+    setBusy("feedback");
+    setError("");
+    try {
+      const data = await postJson<{ messages: AgentMessage[]; itinerary: Itinerary }>("/api/feedback/regenerate", {
+        session: state.session,
+        personas: state.personas,
+        itinerary: state.itinerary,
+        feedback
+      });
+      persist({
+        ...state,
+        messages: [...state.messages, ...data.messages],
+        itinerary: data.itinerary
+      });
+      setFeedback("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Feedback regeneration failed.");
+    } finally {
+      setBusy("idle");
+    }
+  }
+
+  function updateDay(day: number, slot: SlotKey, value: string) {
+    if (!state?.itinerary) return;
+    const itinerary = {
+      ...state.itinerary,
+      days: state.itinerary.days.map((item) => (item.day === day ? { ...item, [slot]: value } : item))
+    };
+    persist({ ...state, itinerary });
+  }
+
+  if (!state || !session) {
+    return <main className="shell">Loading workspace...</main>;
   }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
+    <main className="shell">
+      <header className="topbar">
         <div className="brand">
-          <div className="brand-mark">F</div>
-          <span>Fourest</span>
+          <h1>{state.selectedDestination || "Travel decision workspace"}</h1>
+          <p>
+            {session.departureArea || "Departure"} / {session.duration || "Duration"} / {session.budget || "Budget"}
+          </p>
         </div>
-        <div className="sidebar-card">
-          <div className="nav-list">
-            <Link className="nav-item" href="/">
-              ＋ 새 여행 세션
-            </Link>
-            <span className="nav-item active">▣ 워크스페이스</span>
-          </div>
+        <div className="row">
+          <Link className="btn secondary" href={`/participant/${session.participants[0]?.id ?? "me"}`}>
+            Participant test
+          </Link>
+          <Link className="btn secondary" href="/">
+            Setup
+          </Link>
+          <Link className="btn" href="/report">
+            Report
+          </Link>
         </div>
-        <div className="sidebar-card">
-          <div className="grid-2">
-            <div className="mini-stat">
-              <span className="hint">참여자</span>
-              <strong>{completedCount}/{session.participants.length}</strong>
-            </div>
-            <div className="mini-stat">
-              <span className="hint">기간</span>
-              <strong>{session.duration}일</strong>
-            </div>
-          </div>
-        </div>
-        <div className="sidebar-card">
-          <div className="field" style={{ marginBottom: 10 }}>
-            <label htmlFor="cycles">최대 조율 횟수</label>
-            <input
-              id="cycles"
-              className="input"
-              type="number"
-              min="1"
-              max="8"
-              value={session.settings.maxNegotiationCycles}
-              onChange={(event) =>
-                persistSession({
-                  ...session,
-                  settings: { maxNegotiationCycles: Number(event.target.value) }
-                })
-              }
-            />
-          </div>
-          <p className="hint">UI에는 라운드를 과하게 드러내지 않고 자연스러운 대화로 보여줍니다.</p>
-        </div>
-      </aside>
+      </header>
 
-      <main className="main">
-        <div className="topbar">
-          <div>
-            <strong>{selectedDestination || "목적지 조율 중"}</strong>
-            <span className="hint"> · {session.budget} · {session.departureArea} 출발</span>
-          </div>
-          <div className="button-row">
-            <Link className="pill" href={`/participant/${session.participants[0]?.id ?? "p-1"}`}>
-              테스트 링크
-            </Link>
-            <button className="btn btn-primary" disabled={!allCompleted} onClick={() => regenerate()}>
-              조율 실행
-            </button>
-          </div>
-        </div>
+      {error && <section className="notice" style={{ marginBottom: 16 }}>{error}</section>}
 
-        <div className="workspace">
-          <section className="workspace-column">
+      <section className="panel" style={{ marginBottom: 16 }}>
+        <div className="section-title">
+          <h2>Session status</h2>
+          <span className="pill green">
+            {completedCount}/{session.participants.length} completed
+          </span>
+        </div>
+        {!allCompleted && (
+          <p className="muted">
+            Some participants have not completed their persona test yet. You can still preview with the available data.
+          </p>
+        )}
+        <div className="row">
+          <button className="btn" disabled={busy !== "idle"} onClick={() => regenerate()}>
+            {busy === "idle" ? "Run negotiation" : `Generating ${busy}...`}
+          </button>
+          <span className="muted">Max turns: {session.settings.maxNegotiationCycles}</span>
+          <span className="muted">Research artifacts: {state.researchArtifacts.length}</span>
+        </div>
+      </section>
+
+      <div className="grid three" style={{ marginBottom: 16 }}>
+        {state.personas.map((persona) => (
+          <article className="card" key={persona.id}>
             <div className="section-title">
-              <h2>페르소나</h2>
-              <span className="pill">{personas.length}</span>
+              <h3>{persona.displayName}</h3>
+              <span className="pill">{asPercent(persona.representationScore)}%</span>
             </div>
-            <div className="persona-list">
-              {personas.map((persona, index) => (
-                <article className="persona-card" key={persona.id}>
-                  <div className="persona-head">
-                    <div className="avatar">{persona.displayName.slice(0, 1)}</div>
-                    <div>
-                      <strong>{persona.displayName}</strong>
-                      <p>{persona.summary}</p>
-                    </div>
-                  </div>
-                  <p>{persona.decisionPolicy}</p>
-                  <div className="tag-row">
-                    {persona.preferences.slice(0, 3).map((preference) => (
-                      <span className="tag" key={preference}>{preference}</span>
-                    ))}
-                    <span className="tag">대표성 {persona.representationScore + index}%</span>
-                  </div>
-                </article>
+            <p className="muted">{persona.summary}</p>
+            <div className="tag-row">
+              {persona.preferences.slice(0, 3).map((preference) => (
+                <span className="tag green" key={preference}>
+                  {preference}
+                </span>
               ))}
             </div>
-          </section>
-
-          <section className="chat-column">
-            <div className="chat-feed">
-              <div className="section-title">
-                <h1>에이전트 채팅</h1>
-                <span className="pill">{allCompleted ? "준비 완료" : "테스트 대기"}</span>
-              </div>
-              {!allCompleted ? (
-                <div className="bubble">
-                  모든 참여자가 테스트를 완료해야 토론을 시작할 수 있습니다. 지금은 완료된 참여자 기준으로 미리보기를 표시합니다.
-                </div>
-              ) : null}
-              {messages.map((message) => {
-                const persona = personas.find((item) => item.id === message.speakerId);
-                return (
-                  <article className="message" key={message.id}>
-                    <div className="avatar" style={{ background: message.speakerType === "system" ? "var(--accent)" : "var(--brand)" }}>
-                      {message.speakerType === "system" ? "S" : persona?.displayName.slice(0, 1)}
-                    </div>
-                    <div className="bubble">
-                      <div className="bubble-meta">
-                        <strong>{message.speakerType === "system" ? "시스템" : persona?.displayName}</strong>
-                        <span className="speech-act">{message.speechAct}</span>
-                        <span>지지 {message.supportLevel}%</span>
-                        <span>우려 {message.concernLevel}%</span>
-                      </div>
-                      {message.content}
-                    </div>
-                  </article>
-                );
-              })}
+            <div className="compromise-note" style={{ marginTop: 10 }}>
+              <span className="compromise-label">Compromise</span>
+              <span>{persona.decisionPolicy.canCompromiseOn.slice(0, 2).join(" / ")}</span>
             </div>
-            <div className="composer">
-              <div className="composer-box">
-                <textarea
-                  value={feedback}
-                  onChange={(event) => setFeedback(event.target.value)}
-                  placeholder="피드백을 입력하면 짧게 재토론하고 일정표를 다시 생성합니다."
-                />
-                <button className="btn btn-primary" onClick={() => regenerate()} disabled={!feedback.trim()}>
-                  반영
-                </button>
-              </div>
-            </div>
-          </section>
+          </article>
+        ))}
+      </div>
 
-          <section className="workspace-column">
-            {session.destinationStatus === "undecided" ? (
-              <>
+      {session.destinationStatus === "undecided" && (
+        <section className="panel" style={{ marginBottom: 16 }}>
+          <div className="section-title">
+            <h2>Destination candidates</h2>
+            <span className="pill">{state.candidates.length}</span>
+          </div>
+          <div className="grid three">
+            {state.candidates.map((candidate) => (
+              <button
+                className={`card candidate ${state.selectedDestination === candidate.name ? "selected" : ""}`}
+                key={candidate.id}
+                onClick={() => regenerate(candidate.name)}
+                type="button"
+                disabled={busy !== "idle"}
+                style={{ textAlign: "left" }}
+              >
                 <div className="section-title">
-                  <h2>목적지 후보</h2>
-                  <span className="pill">3개</span>
+                  <h3>{candidate.name}</h3>
+                  <span className="pill">{candidate.estimatedBudget}</span>
                 </div>
-                <div className="candidate-list">
-                  {candidates.map((candidate) => (
-                    <button
-                      className={`candidate-card ${selectedDestination === candidate.name ? "active" : ""}`}
-                      key={candidate.id}
-                      onClick={() => {
-                        setSelectedDestination(candidate.name);
-                        regenerate(candidate.name);
-                      }}
-                      type="button"
-                    >
-                      <div className="section-title">
-                        <strong>{candidate.name}</strong>
-                        <span className="hint">{candidate.estimatedBudget}</span>
-                      </div>
-                      <p>{candidate.reason}</p>
-                      <div className="tag-row">
-                        {candidate.fitTags.map((tag) => (
-                          <span className="tag" key={tag}>{tag}</span>
-                        ))}
-                      </div>
-                    </button>
+                <p>{candidate.reason}</p>
+                <div className="tag-row">
+                  {candidate.fitTags.map((tag) => (
+                    <span className="tag amber" key={tag}>
+                      {tag}
+                    </span>
                   ))}
                 </div>
-              </>
-            ) : null}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
-            <div className="section-title" style={{ marginTop: session.destinationStatus === "undecided" ? 22 : 0 }}>
-              <h2>일자별 일정표</h2>
-              <span className="pill">{itinerary?.destination}</span>
-            </div>
-            <div className="itinerary-list">
-              {itinerary?.days.map((day) => (
-                <article className="day-card" key={day.day}>
-                  <h3>Day {day.day}</h3>
+      <div className="grid two">
+        <section className="panel">
+          <div className="section-title">
+            <h2>Agent dialogue</h2>
+            <span className="pill">{state.messages.length}</span>
+          </div>
+          <div className="chat">
+            {state.messages.length === 0 && <p className="muted">Dialogue will appear here after generation starts.</p>}
+            {state.messages.map((message) => {
+              const persona = state.personas.find((item) => item.id === message.speakerId);
+              return (
+                <article className={`message ${message.speakerType === "expert" ? "expert" : ""}`} key={message.id}>
+                  <div className="message-head">
+                    <strong>{message.speakerType === "expert" ? "Travel expert" : persona?.displayName ?? "System"}</strong>
+                    <span className="pill">{message.speechAct}</span>
+                  </div>
+                  <p>{message.content}</p>
+                  {message.researchSummary && (
+                    <div className="notice" style={{ marginTop: 10 }}>
+                      <strong>Research</strong>
+                      <p style={{ margin: "6px 0 0" }}>{message.researchSummary}</p>
+                    </div>
+                  )}
+                  <div className="row">
+                    <span className="muted">Support {asPercent(message.supportLevel)}%</span>
+                    <span className="muted">Concern {asPercent(message.concernLevel)}%</span>
+                    {message.researchRefs?.slice(0, 2).map((ref) => (
+                      <span className="pill" key={ref}>
+                        {ref.startsWith("mock://") ? "mock source" : "source"}
+                      </span>
+                    ))}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="section-title">
+            <h2>Itinerary</h2>
+            <span className="pill orange">{state.itinerary?.destination || state.selectedDestination || "Pending"}</span>
+          </div>
+
+          <div className="day-grid">
+            {state.itinerary?.days.map((day) => (
+              <article className="day-card" key={day.day}>
+                <div className="day-card-header">
+                  <span className="day-num">Day {day.day}</span>
+                  <span className="day-title-text">{day.title}</span>
+                </div>
+                <div className="day-blocks">
                   {(["morning", "afternoon", "evening"] as const).map((slot) => (
-                    <label className="time-block" key={slot}>
-                      <span className="label">{slot === "morning" ? "오전" : slot === "afternoon" ? "오후" : "저녁"}</span>
+                    <label className="block" key={slot}>
+                      <span className="block-label">{SLOT_LABELS[slot]}</span>
                       <textarea
-                        className="editable-block"
+                        className="block-textarea"
                         value={day[slot]}
                         onChange={(event) => updateDay(day.day, slot, event.target.value)}
                       />
                     </label>
                   ))}
-                </article>
-              ))}
-            </div>
-            {itinerary ? (
-              <div className="candidate-card" style={{ marginTop: 10 }}>
-                <strong>합의 요약</strong>
-                <p style={{ marginTop: 6 }}>{itinerary.consensusSummary}</p>
-                <div className="tag-row">
-                  {itinerary.tradeoffs.map((tradeoff) => (
-                    <span className="tag" key={tradeoff}>{tradeoff}</span>
-                  ))}
                 </div>
+                {day.note && <p className="day-note">{day.note}</p>}
+              </article>
+            ))}
+          </div>
+
+          {state.itinerary && (
+            <div className="notice" style={{ marginTop: 16 }}>
+              <strong>Consensus</strong>
+              <p>{state.itinerary.consensusSummary}</p>
+              <div className="tag-row">
+                {state.itinerary.tradeoffs.map((tradeoff) => (
+                  <span className="tag amber" key={tradeoff}>
+                    {tradeoff}
+                  </span>
+                ))}
               </div>
-            ) : null}
-          </section>
-        </div>
-      </main>
-    </div>
+            </div>
+          )}
+
+          <div className="field" style={{ marginTop: 16 }}>
+            <label>Feedback</label>
+            <textarea
+              value={feedback}
+              onChange={(event) => setFeedback(event.target.value)}
+              placeholder="Ask the agents to adjust the itinerary."
+            />
+          </div>
+          <button className="btn warn" onClick={regenerateWithFeedback} disabled={busy !== "idle" || !feedback.trim()}>
+            Apply feedback
+          </button>
+        </section>
+      </div>
+    </main>
   );
 }

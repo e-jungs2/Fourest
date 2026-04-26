@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateJson } from "@/lib/gemini";
+import { generateJsonWithTimeout } from "@/lib/gemini";
 import { mockCandidates } from "@/lib/mock";
 import type { DestinationCandidate, Persona, TravelSession } from "@/lib/types";
 
@@ -25,6 +25,6 @@ ${JSON.stringify(body.session, null, 2)}
 Personas:
 ${JSON.stringify(body.personas, null, 2)}
 `;
-  const candidates = await generateJson<DestinationCandidate[]>(prompt, fallback);
+  const candidates = await generateJsonWithTimeout<DestinationCandidate[]>(prompt, fallback, 3000);
   return NextResponse.json({ candidates: candidates.slice(0, 3) });
 }

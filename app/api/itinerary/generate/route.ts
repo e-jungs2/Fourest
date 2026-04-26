@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { calculatePersonaSatisfaction } from "@/lib/agent-dialogue";
-import { generateJson } from "@/lib/gemini";
+import { generateJsonWithTimeout } from "@/lib/gemini";
 import { mockItinerary } from "@/lib/mock";
 import type { AgentMessage, Itinerary, Persona, TravelSession } from "@/lib/types";
 
@@ -9,6 +9,7 @@ export async function POST(request: Request) {
     session: TravelSession;
     personas: Persona[];
     messages: AgentMessage[];
+    researchArtifacts?: unknown[];
     selectedDestination: string;
   };
   const destination = body.selectedDestination || body.session.destination || "추천 여행지";
@@ -48,9 +49,11 @@ Personas:
 ${JSON.stringify(body.personas, null, 2)}
 Dialogue:
 ${JSON.stringify(body.messages, null, 2)}
+Research:
+${JSON.stringify(body.researchArtifacts || [], null, 2)}
 Destination: ${destination}
 `;
-  const itinerary = await generateJson<Itinerary>(prompt, fallback);
+  const itinerary = await generateJsonWithTimeout<Itinerary>(prompt, fallback, 3000);
   itinerary.personaSatisfaction = calculatePersonaSatisfaction(body.personas, body.messages);
   return NextResponse.json({ itinerary });
 }
