@@ -1387,6 +1387,29 @@ button { cursor: pointer; }
   margin: 0;
 }
 
+.consensus-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.consensus-item {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.consensus-item strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
 /* Places */
 .place-list {
   display: flex;
@@ -1910,4 +1933,41 @@ button { cursor: pointer; }
   color: var(--text);
   margin: 0;
   line-height: 1.5;
+}
+
+.quiz-result-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.travel-type-card-secondary {
+  background: #fff;
+  border-color: var(--line);
+}
+
+.travel-type-card-secondary .travel-type-label {
+  color: var(--text);
+}
+
+@media (max-width: 760px) {
+  .modal-overlay {
+    align-items: stretch;
+    padding: 10px;
+  }
+
+  .modal-card {
+    max-height: 100%;
+    border-radius: 12px;
+  }
+
+  .modal-grid-3,
+  .quiz-options {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-footer {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
 }

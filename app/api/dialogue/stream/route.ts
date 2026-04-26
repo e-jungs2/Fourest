@@ -5,16 +5,17 @@ function encodeSse(event: string, data: unknown) {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
-function fallbackExpertMessage(session: TravelSession, selectedDestination: string, previous?: AgentMessage): AgentMessage {
+function fallbackFriendMessage(persona: Persona | undefined, selectedDestination: string, previous?: AgentMessage): AgentMessage | null {
+  if (!persona) return null;
   return {
     id: `fallback_${Date.now()}`,
-    speakerId: "travel_expert",
-    speakerType: "expert",
+    speakerId: persona.id,
+    speakerType: "persona",
     replyToId: previous?.id,
-    targetId: "all",
-    speechAct: "validate",
-    content: `${selectedDestination} is feasible for ${session.duration}. Keep the route compact and balance food, rest, and group preferences.`,
-    proposalDelta: "Fallback expert validation after dialogue stream error.",
+    targetId: previous?.speakerId,
+    speechAct: "suggest",
+    content: `일단 ${selectedDestination} 괜찮아 보여. 너무 빡세게만 잡지 말고, 각자 하고 싶은 거 하나씩은 넣어보자.`,
+    proposalDelta: "친구별로 하고 싶은 일정 하나씩 넣기",
     supportLevel: 0.82,
     concernLevel: 0.24
   };
@@ -55,8 +56,8 @@ export async function POST(request: Request) {
         }
       } catch (error) {
         const destination = body.selectedDestination || body.candidates?.[0]?.name || body.session.destination || "candidate destination";
-        const fallback = fallbackExpertMessage(body.session, destination, messages.at(-1));
-        controller.enqueue(encoder.encode(encodeSse("message", fallback)));
+        const fallback = fallbackFriendMessage(body.personas?.[0], destination, messages.at(-1));
+        if (fallback) controller.enqueue(encoder.encode(encodeSse("message", fallback)));
         controller.enqueue(encoder.encode(encodeSse("error", { message: error instanceof Error ? error.message : "Dialogue stream failed" })));
       } finally {
         controller.enqueue(encoder.encode(encodeSse("done", { count: messages.length, researchCount: researchArtifacts.length })));

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Persona Trip Council",
-  description: "페르소나 기반 여행 의사결정 MVP"
+  title: "triper",
+  description: "친구들의 여행 페르소나로 함께 일정을 정하는 웹앱"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

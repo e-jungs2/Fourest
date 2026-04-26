@@ -64,17 +64,6 @@ export type AgentMessage = {
   concernLevel: number;
 };
 
-export type DestinationCandidate = {
-  id: string;
-  name: string;
-  reason: string;
-  estimatedBudget: string;
-  fitTags: string[];
-  pros: string[];
-  cons: string[];
-  personaScores: Record<string, number>;
-};
-
 export type ItineraryDay = {
   day: number;
   morning: string;
@@ -90,252 +79,217 @@ export type Itinerary = {
   consensusSummary: string;
 };
 
-export const SESSION_KEY = "persona-travel-mvp-session";
-
-const emptyScores: QuizScores = {
-  rest_vs_activity: 0,
-  food_interest: 0,
-  budget_sensitivity: 0,
-  comfort_need: 0,
-  planning_preference: 0,
-  local_experience: 0
-};
-
-export function createParticipants(count: number): Participant[] {
-  return Array.from({ length: count }, (_, index) => ({
-    id: `p-${index + 1}`,
-    name: `참여자 ${index + 1}`,
-    basicInfo: "",
-    personalRequests: "",
-    quizAnswers: {},
-    quizScores: { ...emptyScores },
-    completed: false
-  }));
-}
+const friendProfiles = [
+  {
+    id: "kwon-yonghu",
+    name: "권용후",
+    summary: "맛집과 동선을 꼼꼼히 챙기는 계획형 여행자",
+    preferences: ["현지 맛집", "효율적인 이동", "예약 가능한 코스"],
+    constraints: ["불필요한 대기 시간은 줄이고 싶어함", "예산 초과에 민감함"],
+    priorities: ["저녁 맛집은 실패하지 않는 곳", "숙소와 이동 동선 최적화"],
+    decisionPolicy: "근거가 분명한 선택지를 선호하고, 일정이 너무 느슨하면 보완안을 제안한다.",
+    conversationStyle: "차분하게 장단점을 비교하며 말한다.",
+    scores: {
+      rest_vs_activity: 58,
+      food_interest: 88,
+      budget_sensitivity: 76,
+      comfort_need: 62,
+      planning_preference: 86,
+      local_experience: 70
+    }
+  },
+  {
+    id: "lee-chaewon",
+    name: "이채원",
+    summary: "카페, 사진, 분위기를 중요하게 보는 감성형 여행자",
+    preferences: ["예쁜 카페", "사진 명소", "여유로운 자유 시간"],
+    constraints: ["너무 빡빡한 일정은 피하고 싶어함", "숙소 컨디션을 중요하게 봄"],
+    priorities: ["하루 한 번은 분위기 좋은 장소", "휴식 시간이 있는 일정"],
+    decisionPolicy: "전체 분위기와 만족도를 기준으로 보고, 모두가 지치지 않는 선택을 지지한다.",
+    conversationStyle: "부드럽게 의견을 내고 타협점을 잘 찾는다.",
+    scores: {
+      rest_vs_activity: 38,
+      food_interest: 64,
+      budget_sensitivity: 54,
+      comfort_need: 82,
+      planning_preference: 48,
+      local_experience: 68
+    }
+  },
+  {
+    id: "lee-jeongyeon",
+    name: "이정연",
+    summary: "로컬 경험과 즉흥적인 발견을 좋아하는 탐색형 여행자",
+    preferences: ["로컬 골목", "시장 탐방", "새로운 체험"],
+    constraints: ["관광지만 도는 코스는 아쉬워함", "식사는 너무 무난하면 만족도가 낮음"],
+    priorities: ["현지 분위기가 느껴지는 장소", "예상 밖의 재미가 있는 코스"],
+    decisionPolicy: "검증된 일정 사이에 새로운 선택지를 하나씩 넣는 방식에 적극적이다.",
+    conversationStyle: "아이디어를 빠르게 던지고 분위기를 살린다.",
+    scores: {
+      rest_vs_activity: 78,
+      food_interest: 72,
+      budget_sensitivity: 42,
+      comfort_need: 46,
+      planning_preference: 36,
+      local_experience: 92
+    }
+  },
+  {
+    id: "in-taeyoung",
+    name: "인태영",
+    summary: "체력과 비용 균형을 보면서 모두의 만족도를 챙기는 조율형 여행자",
+    preferences: ["균형 잡힌 일정", "가성비", "편한 숙소"],
+    constraints: ["이동이 과하면 피로도가 높아짐", "비싼 선택에는 명확한 이유가 필요함"],
+    priorities: ["무리 없는 동선", "친구들 의견이 반영된 일정"],
+    decisionPolicy: "가장 강한 취향과 가장 큰 불편을 함께 보고 중간 지점을 찾는다.",
+    conversationStyle: "현실적인 질문을 던지며 합의를 돕는다.",
+    scores: {
+      rest_vs_activity: 52,
+      food_interest: 58,
+      budget_sensitivity: 84,
+      comfort_need: 74,
+      planning_preference: 66,
+      local_experience: 56
+    }
+  }
+] as const;
 
 export function demoSession(): TravelSession {
   return {
-    id: "demo-friends-trip",
+    id: "triper-friends-trip",
     destinationStatus: "undecided",
     destination: "",
     departureArea: "서울",
     scope: "국내 2박 3일",
     duration: 3,
     budget: "1인 45만원",
-    requirements: "운전 부담은 적게, 맛집과 풍경이 모두 있었으면 좋겠음",
-    participants: [
-      {
-        id: "p-1",
-        name: "지민",
-        basicInfo: "사진 찍는 걸 좋아하고 이동이 너무 빡빡하면 지침",
-        personalRequests: "오션뷰 카페와 산책 시간을 꼭 넣고 싶음",
-        quizAnswers: { q1: 1, q2: 2, q3: 1, q4: 2, q5: 1, q6: 2 },
-        quizScores: {
-          rest_vs_activity: 35,
-          food_interest: 72,
-          budget_sensitivity: 44,
-          comfort_need: 76,
-          planning_preference: 58,
-          local_experience: 62
-        },
-        completed: true
-      },
-      {
-        id: "p-2",
-        name: "도윤",
-        basicInfo: "활동적인 편이고 새로운 동네를 걷는 걸 좋아함",
-        personalRequests: "하루 한 번은 로컬 시장이나 골목 탐방이 있었으면 함",
-        quizAnswers: { q1: 2, q2: 2, q3: 0, q4: 1, q5: 2, q6: 2 },
-        quizScores: {
-          rest_vs_activity: 82,
-          food_interest: 68,
-          budget_sensitivity: 55,
-          comfort_need: 38,
-          planning_preference: 74,
-          local_experience: 84
-        },
-        completed: true
-      },
-      {
-        id: "p-3",
-        name: "서아",
-        basicInfo: "예산과 숙소 컨디션을 중요하게 봄",
-        personalRequests: "숙소 이동은 최소화하고 너무 비싼 식당은 피하고 싶음",
-        quizAnswers: { q1: 0, q2: 1, q3: 2, q4: 2, q5: 1, q6: 1 },
-        quizScores: {
-          rest_vs_activity: 42,
-          food_interest: 51,
-          budget_sensitivity: 88,
-          comfort_need: 82,
-          planning_preference: 61,
-          local_experience: 49
-        },
-        completed: true
-      },
-      {
-        id: "p-4",
-        name: "민준",
-        basicInfo: "먹는 것과 가벼운 액티비티를 좋아함",
-        personalRequests: "저녁은 제대로 먹고, 낮에는 한 번쯤 체험 코스가 있으면 좋겠음",
-        quizAnswers: { q1: 2, q2: 2, q3: 1, q4: 1, q5: 0, q6: 2 },
-        quizScores: {
-          rest_vs_activity: 76,
-          food_interest: 91,
-          budget_sensitivity: 50,
-          comfort_need: 45,
-          planning_preference: 38,
-          local_experience: 78
-        },
-        completed: true
-      }
-    ],
+    requirements: "친구 4명이 함께 가는 여행. 맛집, 사진, 휴식, 예산 균형을 모두 고려한다.",
+    participants: friendProfiles.map((friend, index) => ({
+      id: `p-${index + 1}`,
+      name: friend.name,
+      basicInfo: friend.summary,
+      personalRequests: friend.priorities.join(" / "),
+      quizAnswers: {},
+      quizScores: friend.scores,
+      completed: true
+    })),
     settings: { maxNegotiationCycles: 5 }
   };
 }
 
 export function generatePersonas(session: TravelSession): Persona[] {
-  return session.participants.map((participant, index) => {
-    const scores = participant.quizScores;
-    const active = scores.rest_vs_activity > 60;
-    const comfort = scores.comfort_need > 60;
-    const food = scores.food_interest > 65;
+  return session.participants.map((participant) => {
+    const friend = friendProfiles.find((item) => item.name === participant.name);
     return {
       id: `persona-${participant.id}`,
       participantId: participant.id,
-      displayName: `${participant.name} 페르소나`,
-      summary: `${active ? "활동" : "회복"} 중심, ${food ? "맛집 우선" : "균형형"} 여행자`,
-      preferences: [
-        active ? "걷기 좋은 동선과 체험 일정" : "여유로운 체크인과 휴식 시간",
-        food ? "지역 맛집과 카페" : "동선 안에서 해결되는 식사",
-        scores.local_experience > 60 ? "로컬 동네 경험" : "검증된 대표 코스"
-      ],
-      constraints: [
-        comfort ? "숙소와 이동 편의성 필요" : "이동 난도는 어느 정도 감수 가능",
-        scores.budget_sensitivity > 70 ? "예산 초과에 민감" : "가치가 있으면 지출 가능"
-      ],
-      priorities: [participant.personalRequests || "개인 요청 없음", session.requirements],
-      decisionPolicy:
-        scores.planning_preference > 60
-          ? "큰 틀을 먼저 합의하고 세부 동선을 조율한다."
-          : "현장 선택지를 남기되 핵심 예약만 고정한다.",
-      conversationStyle: index % 2 === 0 ? "차분히 근거를 제시함" : "대안을 빠르게 제안함",
-      representationScore: 76 + index * 5
+      displayName: participant.name,
+      summary: friend?.summary ?? `${participant.name}의 여행 페르소나`,
+      preferences: friend?.preferences ? [...friend.preferences] : ["여행 만족도"],
+      constraints: friend?.constraints ? [...friend.constraints] : ["큰 제약 없음"],
+      priorities: friend?.priorities ? [...friend.priorities] : [participant.personalRequests || "즐거운 여행"],
+      decisionPolicy: friend?.decisionPolicy ?? "모두의 의견을 보고 균형 있게 결정한다.",
+      conversationStyle: friend?.conversationStyle ?? "차분하고 협조적으로 말한다.",
+      representationScore: 82
     };
   });
 }
 
-export function generateCandidates(personas: Persona[]): DestinationCandidate[] {
-  const names = ["강릉", "여수", "제주 동부"];
-  return names.map((name, index) => ({
-    id: `d-${index + 1}`,
-    name,
-    reason:
-      index === 0
-        ? "이동 부담이 낮고 바다, 카페, 로컬 식당을 균형 있게 넣기 좋습니다."
-        : index === 1
-          ? "먹거리와 야경이 강하고 여유로운 동선 설계가 쉽습니다."
-          : "자연 풍경과 체험 요소가 풍부해 활동형 참여자의 만족도가 높습니다.",
-    estimatedBudget: index === 2 ? "1인 55만~70만원" : "1인 38만~52만원",
-    fitTags: index === 0 ? ["바다", "카페", "짧은 이동"] : index === 1 ? ["맛집", "야경", "낭만"] : ["자연", "체험", "드라이브"],
-    pros: ["요구사항 반영이 쉬움", "참여자 선호를 나누어 담기 좋음"],
-    cons: [index === 2 ? "항공과 렌트 변수가 있음" : "성수기 숙소 가격 변동 가능"],
-    personaScores: Object.fromEntries(personas.map((persona, pIndex) => [persona.id, 72 + index * 4 + pIndex * 3]))
-  }));
+export function createCustomPersona(name: string, personaText: string): Persona {
+  const cleanName = name.trim() || "나";
+  const text = personaText.trim();
+  return {
+    id: `persona-me-${Date.now()}`,
+    participantId: `me-${Date.now()}`,
+    displayName: cleanName,
+    summary: text || "직접 입력한 내 여행 페르소나",
+    preferences: extractList(text, ["내가 중요하게 생각하는 여행 스타일"]),
+    constraints: ["직접 입력한 페르소나를 우선 반영"],
+    priorities: [text || "내 취향이 반영된 여행"],
+    decisionPolicy: "입력된 페르소나 문장을 기준으로 여행 선택을 판단한다.",
+    conversationStyle: "내가 적은 취향을 직접적으로 반영해 의견을 낸다.",
+    representationScore: 90
+  };
 }
 
-export function generateMessages(personas: Persona[], destination: string): AgentMessage[] {
-  const acts: AgentMessage["speechAct"][] = ["suggest", "counter_proposal", "compromise", "validate", "final_vote"];
-  return personas.flatMap((persona, index) => [
-    {
-      id: `m-${index + 1}`,
+function extractList(text: string, fallback: string[]) {
+  const parts = text
+    .split(/[,\n/]+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .slice(0, 4);
+  return parts.length ? parts : fallback;
+}
+
+const MAX_FALLBACK_NEGOTIATION_CYCLES = 5;
+
+function fallbackSpeechActForTurn(turnIndex: number, personaCount: number, totalTurns: number): AgentMessage["speechAct"] {
+  const cycleIndex = Math.floor(turnIndex / personaCount);
+  if (turnIndex >= totalTurns - personaCount) return "final_vote";
+  if (cycleIndex === 0) return turnIndex % personaCount === 0 ? "suggest" : "counter_proposal";
+  if (cycleIndex === 1) return "counter_proposal";
+  if (cycleIndex === 2) return "compromise";
+  return "agree";
+}
+
+export function generateMessages(personas: Persona[], situation: string): AgentMessage[] {
+  const totalTurns = personas.length * MAX_FALLBACK_NEGOTIATION_CYCLES;
+  return Array.from({ length: totalTurns }, (_, index) => {
+    const persona = personas[index % personas.length];
+    return {
+      id: `m-${Date.now()}-${index}`,
       speakerId: persona.id,
       speakerType: "persona",
-      speechAct: acts[index % acts.length],
-      content:
-        index === 0
-          ? `${destination || "후보지"}는 휴식과 산책 시간을 분리하기 좋아요. 첫날은 도착 후 강한 일정보다 분위기 잡는 코스가 좋겠습니다.`
-          : index === 1
-            ? `동의하지만 로컬 경험이 약하면 아쉬울 수 있어요. 시장이나 골목 탐방을 오후에 넣는 안을 제안합니다.`
-            : index === 2
-              ? `예산과 숙소 컨디션을 고려하면 숙소 이동은 줄이고, 비싼 식사는 하루 한 번만 확실히 잡는 편이 안전합니다.`
-              : `저녁 식사는 만족도를 크게 좌우하니 예약 가능한 맛집을 중심으로 잡고 낮에는 짧은 체험을 넣으면 균형이 맞아요.`,
-      supportLevel: 70 + index * 6,
-      concernLevel: 30 - index * 3
-    }
-  ]);
+      speechAct: fallbackSpeechActForTurn(index, personas.length, totalTurns),
+      content: buildMessage(persona, situation, index, personas.length, totalTurns),
+      supportLevel: Math.min(95, 72 + index * 5),
+      concernLevel: Math.max(8, 34 - index * 4)
+    };
+  });
+}
+
+function buildMessage(persona: Persona, situation: string, index: number, personaCount: number, totalTurns: number) {
+  const destination = situation || "이번 여행";
+  const cycleIndex = Math.floor(index / personaCount);
+  const finalCycle = index >= totalTurns - personaCount;
+  if (finalCycle) {
+    return `오케이, 이 정도면 난 좋아. 대신 ${persona.priorities[0]}은 꼭 하나 넣고, ${persona.constraints[0]}만 너무 심하지 않게 가자.`;
+  }
+  if (cycleIndex === 0) {
+    return `난 ${destination}이면 ${persona.preferences[0]} 쪽이 제일 끌려. ${persona.priorities[0]}도 같이 챙기면 꽤 재밌을 것 같아.`;
+  }
+  if (cycleIndex === 1) {
+    return `그건 괜찮은데 ${persona.constraints[0]}은 좀 신경 쓰이긴 해. 하루에 한 번쯤은 숨 돌릴 시간 넣으면 좋겠어.`;
+  }
+  if (cycleIndex === 2) {
+    return `나는 ${persona.preferences[0]} 같은 게 하나쯤 있으면 좋겠어. 대신 그거 넣는 대신 다른 코스는 가까운 데로 줄여도 돼.`;
+  }
+  return `그럼 맛집이랑 쉬는 시간, 예산을 하루에 너무 몰지 말고 나눠 넣자. 그 정도면 나도 편하게 따라갈 수 있을 듯.`;
 }
 
 export function generateItinerary(session: TravelSession, destination: string): Itinerary {
+  const safeDestination = destination || "추천 여행지";
   const days = Array.from({ length: session.duration }, (_, index) => ({
     day: index + 1,
     morning:
       index === 0
-        ? `${session.departureArea || "출발지"} 출발, 숙소 근처로 이동하며 부담 낮은 브런치`
-        : `느린 아침 식사 후 ${destination} 대표 산책 코스`,
+        ? `${session.departureArea} 출발, 숙소 근처로 이동하며 가벼운 브런치`
+        : `${safeDestination} 대표 산책 코스와 카페`,
     afternoon:
-      index === 0
-        ? "체크인 전후 카페와 전망 좋은 산책길"
-        : index === session.duration - 1
-          ? "기념품 쇼핑과 이동 전 가벼운 로컬 식사"
-          : "로컬 시장, 골목 탐방, 짧은 체험 일정",
+      index === session.duration - 1
+        ? "기념품 쇼핑과 이동 전 여유 시간"
+        : "로컬 골목, 시장, 사진 명소를 묶은 짧은 동선",
     evening:
       index === session.duration - 1
-        ? "귀가 동선에 맞춘 이른 저녁과 정리"
-        : "예약 가능한 지역 맛집, 숙소 근처 자유 시간"
+        ? "귀가 동선에 맞춰 이른 저녁"
+        : "예약 가능한 현지 맛집과 숙소 근처 자유 시간"
   }));
 
   return {
-    destination,
+    destination: safeDestination,
     days,
-    tradeoffs: ["숙소 이동을 줄이는 대신 일부 명소는 과감히 제외", "고가 식사는 하루 한 번으로 제한"],
-    personaSatisfaction: Object.fromEntries(session.participants.map((participant, index) => [participant.id, 78 + index * 4])),
-    consensusSummary: "휴식, 로컬 경험, 맛집, 예산 안정성을 모두 일정 안에 한 번씩 명확히 배치했습니다."
+    tradeoffs: ["핵심 명소는 유지하고 이동 부담이 큰 코스는 줄임", "비싼 식사는 하루 한 번으로 제한"],
+    personaSatisfaction: Object.fromEntries(session.participants.map((participant, index) => [participant.id, 80 + index * 4])),
+    consensusSummary: "맛집, 사진, 휴식, 예산을 하루 안에 나눠 배치해 네 친구의 취향이 모두 보이도록 구성했습니다."
   };
-}
-
-export const quizQuestions = [
-  {
-    id: "q1",
-    title: "여행 하루가 끝났을 때 더 만족스러운 쪽은?",
-    options: ["충분히 쉬었다", "적당히 둘 다 했다", "많이 보고 움직였다"],
-    axis: "rest_vs_activity"
-  },
-  {
-    id: "q2",
-    title: "식사는 여행에서 어느 정도 중요한가요?",
-    options: ["동선 안에서 간단히", "괜찮은 곳이면 좋음", "맛집이 핵심"],
-    axis: "food_interest"
-  },
-  {
-    id: "q3",
-    title: "예산이 예상보다 올라가면?",
-    options: ["좋으면 괜찮음", "조금 조정", "바로 대안 필요"],
-    axis: "budget_sensitivity"
-  },
-  {
-    id: "q4",
-    title: "숙소와 이동 편의성은?",
-    options: ["크게 상관 없음", "평균이면 됨", "꽤 중요함"],
-    axis: "comfort_need"
-  },
-  {
-    id: "q5",
-    title: "일정표는 어느 정도까지 정해져야 편한가요?",
-    options: ["현장 즉흥", "큰 틀만", "시간대별 계획"],
-    axis: "planning_preference"
-  },
-  {
-    id: "q6",
-    title: "로컬 경험에 대한 선호는?",
-    options: ["대표 명소 중심", "섞이면 좋음", "동네 감각 중요"],
-    axis: "local_experience"
-  }
-] as const;
-
-export function scoreQuiz(answers: Record<string, number>): QuizScores {
-  const scores = { ...emptyScores };
-  quizQuestions.forEach((question) => {
-    scores[question.axis] = 20 + (answers[question.id] ?? 1) * 35;
-  });
-  return scores;
 }

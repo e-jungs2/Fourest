@@ -40,7 +40,7 @@ export async function generateJson<T>(prompt: string, fallback: T): Promise<T> {
   }
 }
 
-export async function generateText(prompt: string, fallback: string): Promise<string> {
+export async function generateText(prompt: string, fallback: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<string> {
   if (!process.env.GEMINI_API_KEY) return fallback;
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -48,7 +48,8 @@ export async function generateText(prompt: string, fallback: string): Promise<st
       ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: prompt
-      })
+      }),
+      timeoutMs
     );
     return response.text?.trim() || fallback;
   } catch {

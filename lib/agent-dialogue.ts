@@ -19,6 +19,8 @@ type PersonaTurnContext = AgentTurnInput & {
   researchArtifact: ResearchArtifact;
   roundIndex: number;
   turnIndex: number;
+  totalTurnIndex: number;
+  maxTurns: number;
 };
 
 export type AgentLoopEvent =
@@ -46,13 +48,14 @@ export async function* runAgentMainLoop(input: AgentTurnInput): AsyncGenerator<A
   const personas = (input.personas || []).map((persona) => ensurePersonaMarkdown(persona, input.session.participants));
   const destination = input.selectedDestination || input.candidates[0]?.name || input.session.destination || "candidate destination";
   const maxTurns = Math.max(1, input.session.settings.maxNegotiationCycles || 1);
-  const activePersonas = personas.slice(0, maxTurns);
   const messages: AgentMessage[] = [];
   const researchArtifacts: ResearchArtifact[] = [];
 
-  for (let turnIndex = 0; turnIndex < activePersonas.length; turnIndex += 1) {
-      const roundIndex = 0;
-      const persona = activePersonas[turnIndex];
+  for (let totalTurnIndex = 0; totalTurnIndex < maxTurns; totalTurnIndex += 1) {
+      const roundIndex = Math.floor(totalTurnIndex / Math.max(1, personas.length));
+      const turnIndex = totalTurnIndex % Math.max(1, personas.length);
+      const persona = personas[turnIndex];
+      if (!persona) break;
       const researchArtifact = await runMcpResearch({
         session: input.session,
         persona,
@@ -65,7 +68,7 @@ export async function* runAgentMainLoop(input: AgentTurnInput): AsyncGenerator<A
       yield { type: "research", artifact: researchArtifact };
 
       const fallback = withResearch(
-        fallbackPersonaMessage(persona, messages.at(-1), destination, roundIndex, turnIndex),
+        fallbackPersonaMessage(persona, messages.at(-1), destination, totalTurnIndex),
         researchArtifact
       );
       const generated = await generatePersonaTurn(
@@ -77,7 +80,9 @@ export async function* runAgentMainLoop(input: AgentTurnInput): AsyncGenerator<A
           previousMessages: messages,
           researchArtifact,
           roundIndex,
-          turnIndex
+          turnIndex,
+          totalTurnIndex,
+          maxTurns
         },
         fallback
       );
@@ -95,17 +100,15 @@ export async function* runAgentMainLoop(input: AgentTurnInput): AsyncGenerator<A
       }
   }
 
-  const fallbackExpert = fallbackExpertMessage(input.session, destination, messages.at(-1), researchArtifacts);
-  const expert = await generateExpertTurn(input.session, personas, input.candidates, destination, messages, researchArtifacts, fallbackExpert);
-  messages.push(expert);
-  yield { type: "message", message: expert };
+  return;
 }
 
 async function generatePersonaTurn(context: PersonaTurnContext, fallback: AgentMessage) {
-  const suggestedAct = roundSpeechActs[Math.min(roundSpeechActs.length - 1, context.roundIndex + context.turnIndex)] || "agree";
+  const suggestedAct = roundSpeechActs[Math.min(roundSpeechActs.length - 1, context.totalTurnIndex)] || "agree";
   const prompt = `
-You are one independent persona agent in a Korean travel decision system.
-You are NOT writing for all agents. You only speak as this one persona.
+You speak for one friend in a Korean travel group chat.
+You are not a validator, judge, mediator, expert, facilitator, or narrator.
+You are only this one friend talking naturally with other friends about a trip.
 
 Persona markdown:
 ${context.persona.contextMarkdown}
@@ -133,6 +136,7 @@ ${JSON.stringify(context.candidates, null, 2)}
 Selected/current destination: ${context.destination}
 Current negotiation round: ${context.roundIndex + 1} of ${context.session.settings.maxNegotiationCycles}
 Turn in this round: ${context.turnIndex + 1} of ${context.personas.length}
+Overall turn: ${context.totalTurnIndex + 1} of ${context.maxTurns}
 
 Previous dialogue:
 ${JSON.stringify(context.previousMessages, null, 2)}
@@ -148,18 +152,25 @@ ${JSON.stringify(
   2
 )}
 
+Tone:
+- Write like a real friend in a group chat.
+- Do not sound like a report, policy, validator, or meeting facilitator.
+- Avoid words like feasibility, validate, consensus, satisfaction score, priority reflected, tradeoff analysis.
+- It is okay to say things like "난 이건 좋아", "근데 이건 좀 빡셀 듯", "차라리 이렇게 하자".
+- Be casual but not rude. No markdown, no bullet points inside content.
+
 Task:
 - Speak only as ${context.persona.displayName}.
-- Use the persona markdown as the primary identity and decision policy.
-- Use the chat history to react to the current negotiation state.
-- Use the research summary as factual support, but do not invent details outside it.
-- Make this turn clearly different from previous messages. Do not reuse the same sentence structure.
-- Mention at least one concrete priority or constraint unique to this persona.
-- If there is disagreement, propose a concrete compromise.
-- Keep the content concise enough for a live chat card.
+- Use the persona markdown only as background taste, not as something to quote mechanically.
+- React directly to what friends already said.
+- If using research, mention it lightly as something you checked or heard, not like evidence in a report.
+- Mention one concrete thing this friend wants or dislikes.
+- If there is disagreement, suggest a friend-like alternative.
+- On the final overall turn, end naturally: "이 정도면 난 괜찮아" or "이 조건이면 좋아" style.
+- Keep the content short enough for a live chat bubble.
 - Return only one JSON AgentMessage object.
 - speakerId must be "${context.persona.id}" and speakerType must be "persona".
-- researchSummary should briefly describe which research influenced the turn.
+- researchSummary should be short and plain if present.
 - researchRefs should contain source URLs from the research when available.
 - speechAct should fit the turn. Suggested speechAct: ${suggestedAct}.
 
@@ -182,56 +193,13 @@ AgentMessage shape:
   return generateJsonWithTimeout<AgentMessage>(prompt, fallback, 2500);
 }
 
-async function generateExpertTurn(
-  session: TravelSession,
-  personas: Persona[],
-  candidates: DestinationCandidate[],
-  selectedDestination: string,
-  previousMessages: AgentMessage[],
-  researchArtifacts: ResearchArtifact[],
-  fallback: AgentMessage
-) {
-  const prompt = `
-You are an independent Travel Expert Agent.
-You do not represent a participant. Validate feasibility and mediate the persona discussion.
-Return only one JSON AgentMessage object with speakerId "travel_expert" and speakerType "expert".
-Keep the content concise and useful for the final itinerary generator.
-
-Session:
-${JSON.stringify(session, null, 2)}
-Personas:
-${JSON.stringify(personas, null, 2)}
-Candidates:
-${JSON.stringify(candidates, null, 2)}
-Selected destination: ${selectedDestination}
-Persona dialogue:
-${JSON.stringify(previousMessages, null, 2)}
-Research artifacts:
-${JSON.stringify(researchArtifacts.slice(-8), null, 2)}
-`;
-  const message = await generateJsonWithTimeout<AgentMessage>(prompt, fallback, 2500);
-  return {
-    ...fallback,
-    ...message,
-    id: message.id || fallback.id,
-    speakerId: "travel_expert",
-    speakerType: "expert" as const,
-    speechAct: "validate" as const,
-    researchSummary: message.researchSummary || summarizeResearch(researchArtifacts),
-    researchRefs: message.researchRefs || researchArtifacts.flatMap((artifact) => artifact.sources.map((source) => source.url).filter(Boolean) as string[]),
-    supportLevel: clampNumber(message.supportLevel, fallback.supportLevel),
-    concernLevel: clampNumber(message.concernLevel, fallback.concernLevel)
-  };
-}
-
 function fallbackPersonaMessage(
   persona: Persona,
   previous: AgentMessage | undefined,
   destination: string,
-  roundIndex: number,
-  turnIndex: number
+  totalTurnIndex: number
 ): AgentMessage {
-  const speechAct = roundSpeechActs[Math.min(roundSpeechActs.length - 1, roundIndex + turnIndex)] || "agree";
+  const speechAct = roundSpeechActs[Math.min(roundSpeechActs.length - 1, totalTurnIndex)] || "agree";
   return {
     id: makeId("msg"),
     speakerId: persona.id,
@@ -240,33 +208,11 @@ function fallbackPersonaMessage(
     targetId: previous?.speakerId,
     speechAct,
     content: previous
-      ? `I can accept that direction for ${destination}, but ${persona.constraints[0]} should stay visible. I suggest keeping ${persona.priorities[0]} while replacing long-transfer items with nearby options.`
-      : `${destination} seems promising for my needs. I want ${persona.priorities[0]} to be clearly reflected before we lock the plan.`,
-    proposalDelta: "Keep the key preference and reduce long transfers with nearby alternatives.",
-    supportLevel: Math.min(0.9, 0.72 + turnIndex * 0.03),
-    concernLevel: Math.max(0.22, 0.58 - turnIndex * 0.07)
-  };
-}
-
-function fallbackExpertMessage(
-  session: TravelSession,
-  selectedDestination: string,
-  previous: AgentMessage | undefined,
-  researchArtifacts: ResearchArtifact[]
-): AgentMessage {
-  return {
-    id: makeId("msg"),
-    speakerId: "travel_expert",
-    speakerType: "expert",
-    replyToId: previous?.id,
-    targetId: "all",
-    speechAct: "validate",
-    content: `${selectedDestination} is feasible for ${session.duration}. Keep one key activity in the morning, choose low-movement routes in the afternoon, and mix dinner with free time in the evening.`,
-    proposalDelta: "Adjust itinerary density with morning/afternoon/evening blocks.",
-    researchSummary: summarizeResearch(researchArtifacts),
-    researchRefs: researchArtifacts.flatMap((artifact) => artifact.sources.map((source) => source.url).filter(Boolean) as string[]),
-    supportLevel: 0.86,
-    concernLevel: 0.18
+      ? `그 방향 괜찮은데 ${persona.constraints[0]}은 좀 신경 쓰여. ${persona.priorities[0]}은 살리고, 이동 긴 건 가까운 걸로 바꾸면 어때?`
+      : `난 ${destination} 괜찮아 보여. 대신 ${persona.priorities[0]}은 하나쯤 꼭 넣었으면 좋겠어.`,
+    proposalDelta: "핵심 취향은 살리고 이동이 긴 일정은 가까운 대안으로 줄이기",
+    supportLevel: Math.min(0.9, 0.72 + totalTurnIndex * 0.03),
+    concernLevel: Math.max(0.22, 0.58 - totalTurnIndex * 0.07)
   };
 }
 
@@ -292,13 +238,6 @@ function withResearch(message: AgentMessage, researchArtifact: ResearchArtifact)
     researchSummary: researchArtifact.summary,
     researchRefs: researchArtifact.sources.map((source) => source.url).filter(Boolean) as string[]
   };
-}
-
-function summarizeResearch(researchArtifacts: ResearchArtifact[]) {
-  return researchArtifacts
-    .slice(-4)
-    .map((artifact) => artifact.summary)
-    .join("\n");
 }
 
 function clampNumber(value: number | undefined, fallback: number) {
