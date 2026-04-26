@@ -15,6 +15,7 @@ import {
 const PERSONA_COLORS = ["#10a37f", "#3b82f6", "#f59e0b", "#ef4444", "#06b6d4"];
 const MY_COLOR = "#7c3aed";
 const FOLDERS_KEY = "triper-folders-v2";
+const DEFAULT_FRIEND_PERSONAS = generatePersonas(demoSession());
 
 type Folder = { id: string; name: string; personas: Persona[]; isOpen: boolean };
 type SituationItem = { type: "situation"; id: string; content: string };
@@ -25,6 +26,7 @@ type ResultData = {
   destination: string;
   summary: string;
   personaDecisions: { name: string; stance: string }[];
+  opinionShares: { personaId: string; name: string; percent: number; evidence: string[] }[];
   places: Place[];
   itinerary: Itinerary;
   budget: { label: string; amount: string }[];
@@ -33,10 +35,17 @@ type ResultData = {
 function initFolders(): Folder[] {
   return [{
     id: "friends",
-    name: "친구 여행",
-    personas: generatePersonas(demoSession()),
+    name: "친구",
+    personas: DEFAULT_FRIEND_PERSONAS,
     isOpen: true
   }];
+}
+
+function normalizeFolders(folders: Folder[]) {
+  return folders.map((folder) => ({
+    ...folder,
+    name: folder.id === "friends" && folder.name === "친구 여행" ? "친구" : folder.name
+  }));
 }
 
 function findMyPersonaId(personas: Persona[]) {
@@ -47,6 +56,10 @@ function personaColor(id: string, personas: Persona[], myId: string) {
   if (id === myId) return MY_COLOR;
   const idx = Math.max(0, personas.findIndex((persona) => persona.id === id));
   return PERSONA_COLORS[idx % PERSONA_COLORS.length];
+}
+
+function clonePersonaForFolder(persona: Persona): Persona {
+  return { ...persona, preferences: [...persona.preferences], constraints: [...persona.constraints], priorities: [...persona.priorities] };
 }
 
 function inferDestination(situation: string) {
@@ -74,9 +87,47 @@ function generateConsensusSummary(destination: string, personas: Persona[], mess
     .join(", ");
 
   if (anchor) {
-    return `${destination}로 정하되, 대화에서 나온 "${anchor}" 흐름을 기준으로 ${priorities}을 일정에 나눠 반영하는 합의안입니다.`;
+    return `${destination}로 가는 쪽으로 기울었고, 대화에서 나온 "${anchor}" 흐름에 맞춰 ${priorities}을 일정에 나눠 넣었습니다.`;
   }
-  return `${destination}로 정하되, ${priorities}을 일정에 나눠 반영하는 합의안입니다.`;
+  return `${destination}로 가는 쪽으로 정리했고, ${priorities}을 일정에 나눠 넣었습니다.`;
+}
+
+function reflectionEvidence(persona: Persona, resultText: string) {
+  const profile = [...persona.preferences, ...persona.priorities, ...persona.constraints].join(" ");
+  const rules: Array<{ pattern: RegExp; result: RegExp; label: string }> = [
+    { pattern: /맛집|식사|음식|미식|저녁/, result: /맛집|식사|저녁|포차|시장|순두부|초밥|해산물/, label: "먹을 곳" },
+    { pattern: /카페|사진|분위기|야경|예쁜|감성/, result: /카페|사진|야경|전망|바다|오션뷰/, label: "사진/분위기" },
+    { pattern: /로컬|골목|시장|현지|탐방/, result: /로컬|골목|시장|마을|산책/, label: "로컬 코스" },
+    { pattern: /동선|이동|숙소|환승|편한|편의/, result: /숙소|근처|짧은 동선|이동|귀가|가벼운/, label: "이동/숙소" },
+    { pattern: /예산|가성비|비용|비싼|가격/, result: /예산|왕복|만원|가성비|비싼/, label: "예산" },
+    { pattern: /휴식|여유|쉬|피곤|무리|체력/, result: /휴식|여유|가벼운|무리|자유시간|쉬/, label: "휴식" }
+  ];
+
+  return rules
+    .filter((rule) => rule.pattern.test(profile) && rule.result.test(resultText))
+    .map((rule) => rule.label);
+}
+
+function calculateOpinionShares(personas: Persona[], messages: AgentMessage[], resultText: string) {
+  const raw = personas.map((persona) => {
+    const ownMessages = messages.filter((message) => message.speakerId === persona.id);
+    const last = ownMessages.at(-1);
+    const evidence = reflectionEvidence(persona, resultText);
+    const support = typeof last?.supportLevel === "number" ? last.supportLevel : 72;
+    const concern = typeof last?.concernLevel === "number" ? last.concernLevel : 24;
+    const score = 10 + evidence.length * 7 + Math.max(0, support - concern) * 0.18 + Math.min(4, ownMessages.length);
+    return { personaId: persona.id, name: persona.displayName, score, evidence };
+  });
+  const total = raw.reduce((sum, item) => sum + item.score, 0) || 1;
+  const rounded = raw.map((item) => ({ ...item, percent: Math.max(5, Math.round((item.score / total) * 100)) }));
+  const drift = 100 - rounded.reduce((sum, item) => sum + item.percent, 0);
+  if (rounded[0]) rounded[0].percent += drift;
+  return rounded.map(({ personaId, name, percent, evidence }) => ({
+    personaId,
+    name,
+    percent,
+    evidence: evidence.length ? evidence : ["기본 선호"]
+  }));
 }
 
 function generateResult(situation: string, personas: Persona[], messages: AgentMessage[]): ResultData {
@@ -115,6 +166,14 @@ function generateResult(situation: string, personas: Persona[], messages: AgentM
       { name: "고소동 벽화마을", category: "관광", description: "언덕길에서 바다 전망과 사진을 챙길 수 있는 코스", address: "전남 여수시 고소동", tags: ["사진", "전망", "골목"] }
     ]
   };
+  const resultText = [
+    summary,
+    ...places[destination].flatMap((place) => [place.name, place.category, place.description, ...place.tags]),
+    ...itinerary.days.flatMap((day) => [day.morning, day.afternoon, day.evening]),
+    ...itinerary.tradeoffs,
+    ...itinerary.days.map((day) => day.morning + day.afternoon + day.evening),
+    "예산 왕복 만원 숙소 식비 카페 체험"
+  ].join(" ");
 
   return {
     destination,
@@ -123,6 +182,7 @@ function generateResult(situation: string, personas: Persona[], messages: AgentM
       name: persona.displayName,
       stance: summarizePersonaDecision(persona, messages)
     })),
+    opinionShares: calculateOpinionShares(personas, messages, resultText),
     places: places[destination],
     itinerary,
     budget: [
@@ -137,6 +197,7 @@ function generateResult(situation: string, personas: Persona[], messages: AgentM
 export default function Home() {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [activeFolderId, setActiveFolderId] = useState("");
+  const [lastTravelFolderId, setLastTravelFolderId] = useState("");
   const [myPersonaId, setMyPersonaId] = useState("");
   const [addingFolder, setAddingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
@@ -152,12 +213,15 @@ export default function Home() {
   const newFolderRef = useRef<HTMLInputElement>(null);
 
   const activePersonas = folders.find((folder) => folder.id === activeFolderId)?.personas ?? [];
+  const targetTravelFolderId = activeFolderId !== "friends" ? activeFolderId : lastTravelFolderId || folders.find((folder) => folder.id !== "friends")?.id || "";
+  const targetTravelFolder = folders.find((folder) => folder.id === targetTravelFolderId);
 
   useEffect(() => {
     const raw = localStorage.getItem(FOLDERS_KEY);
-    const loaded: Folder[] = raw ? JSON.parse(raw) : initFolders();
+    const loaded: Folder[] = normalizeFolders(raw ? JSON.parse(raw) : initFolders());
     setFolders(loaded);
     setActiveFolderId(loaded[0]?.id ?? "");
+    setLastTravelFolderId(loaded.find((folder) => folder.id !== "friends")?.id ?? "");
     setMyPersonaId(findMyPersonaId(loaded[0]?.personas ?? []));
   }, []);
 
@@ -190,6 +254,7 @@ export default function Home() {
     const folder: Folder = { id: `folder-${Date.now()}`, name, personas: [], isOpen: true };
     setFolders((prev) => [...prev, folder]);
     setActiveFolderId(folder.id);
+    setLastTravelFolderId(folder.id);
     setMyPersonaId("");
     setNewFolderName("");
     setAddingFolder(false);
@@ -208,6 +273,20 @@ export default function Home() {
     setMyPersonaId(persona.id);
   }
 
+  function addFriendToFolder(folderId: string, persona: Persona) {
+    if (!folderId) return;
+    setFolders((prev) => prev.map((folder) =>
+      folder.id === folderId && !folder.personas.some((item) => item.id === persona.id)
+        ? { ...folder, personas: [...folder.personas, clonePersonaForFolder(persona)], isOpen: true }
+        : folder
+    ));
+    setActiveFolderId(folderId);
+    setLastTravelFolderId(folderId);
+    setItems([]);
+    setResult(null);
+    setShowResult(false);
+  }
+
   function deletePersona(folderId: string, personaId: string) {
     setFolders((prev) => prev.map((folder) =>
       folder.id === folderId
@@ -215,6 +294,21 @@ export default function Home() {
         : folder
     ));
     if (myPersonaId === personaId) setMyPersonaId("");
+  }
+
+  function deleteFolder(folderId: string) {
+    if (folderId === "friends") return;
+    setFolders((prev) => {
+      const next = prev.filter((folder) => folder.id !== folderId);
+      const nextActive = activeFolderId === folderId ? (next[0]?.id ?? "") : activeFolderId;
+      setActiveFolderId(nextActive);
+      setLastTravelFolderId(next.find((folder) => folder.id !== "friends")?.id ?? "");
+      setMyPersonaId(findMyPersonaId(next.find((folder) => folder.id === nextActive)?.personas ?? []));
+      return next;
+    });
+    setItems([]);
+    setResult(null);
+    setShowResult(false);
   }
 
   async function send() {
@@ -317,6 +411,7 @@ export default function Home() {
                   className={`folder-header ${activeFolderId === folder.id ? "active" : ""}`}
                   onClick={() => {
                     setActiveFolderId(folder.id);
+                    if (folder.id !== "friends") setLastTravelFolderId(folder.id);
                     setFolders((prev) => prev.map((item) => item.id === folder.id ? { ...item, isOpen: !item.isOpen } : item));
                     setMyPersonaId(findMyPersonaId(folder.personas));
                     setItems([]);
@@ -326,6 +421,19 @@ export default function Home() {
                 >
                   <span className={`folder-chevron ${folder.isOpen ? "open" : ""}`}>›</span>
                   <span className="folder-name">{folder.name}</span>
+                  {folder.id !== "friends" && (
+                    <button
+                      className="folder-delete"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        deleteFolder(folder.id);
+                      }}
+                      title="여행 삭제"
+                      type="button"
+                    >
+                      ×
+                    </button>
+                  )}
                   <button
                     className="folder-add-persona"
                     onClick={(event) => {
@@ -350,6 +458,7 @@ export default function Home() {
                           className={`persona-tree-item ${isMe ? "active" : ""}`}
                           onClick={() => {
                             setActiveFolderId(folder.id);
+                            if (folder.id !== "friends") setLastTravelFolderId(folder.id);
                             setMyPersonaId(persona.participantId.startsWith("me-") ? persona.id : findMyPersonaId(folder.personas));
                           }}
                           type="button"
@@ -357,7 +466,23 @@ export default function Home() {
                           <div className="avatar-xs" style={{ background: color }}>{persona.displayName.slice(0, 1)}</div>
                           <span className="persona-tree-name">{persona.displayName}</span>
                           {isMe && <span className="me-badge">나</span>}
-                          {!persona.participantId.startsWith("p-") && (
+                          {folder.id === "friends" && persona.participantId.startsWith("p-") && targetTravelFolderId && (
+                            targetTravelFolder?.personas.some((item) => item.id === persona.id) ? (
+                              <span className="friend-added-mark" title={`${targetTravelFolder.name}에 추가됨`}>✓</span>
+                            ) : (
+                              <span
+                                className="friend-inline-add"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  addFriendToFolder(targetTravelFolderId, persona);
+                                }}
+                                title={`${targetTravelFolder?.name ?? "여행"}에 추가`}
+                              >
+                                +
+                              </span>
+                            )
+                          )}
+                          {(folder.id !== "friends" || !persona.participantId.startsWith("p-")) && (
                             <span
                               className="persona-delete"
                               onClick={(event) => {
@@ -383,9 +508,9 @@ export default function Home() {
           <main className="chat-main">
             {items.length === 0 ? (
               <div className="chat-empty">
-                <div className="chat-empty-icon">✈</div>
-                <h2 className="chat-empty-title">친구 페르소나에게 여행 상황을 알려주세요</h2>
-                <p className="chat-empty-sub">권용후, 이채원, 이정연, 인태영이 각자 취향에 맞춰 의견을 냅니다.</p>
+                <div className="chat-empty-icon">✈️</div>
+                <h2 className="chat-empty-title">여행에서 고민되는 상황을 알려주세요!</h2>
+                <p className="chat-empty-sub">친구의 취향을 반영한 페르소나들이 각자 취향에 맞춰 의견을 냅니다.</p>
                 <div className="chat-suggestions">
                   {suggestions.map((suggestion) => (
                     <button
@@ -421,7 +546,6 @@ export default function Home() {
                       <div className="chat-bubble-wrap">
                         {!isMe && <span className="chat-name" style={{ color }}>{persona?.displayName}</span>}
                         <div className={isMe ? "chat-bubble chat-bubble-mine" : "chat-bubble"}>{item.content}</div>
-                        <span className={`chat-act ${isMe ? "chat-act-right" : ""}`}>{item.speechAct}</span>
                       </div>
                       {isMe && <div className="avatar avatar-chat avatar-mine">{persona?.displayName.slice(0, 1)}</div>}
                     </div>
@@ -487,6 +611,23 @@ export default function Home() {
                 <div className="result-section">
                   <p className="result-section-title">요약</p>
                   <p className="result-summary">{result.summary}</p>
+                  <div className="opinion-share-list">
+                    {result.opinionShares.map((share) => {
+                      const color = personaColor(share.personaId, activePersonas, myPersonaId);
+                      return (
+                        <div className="opinion-share-row" key={share.personaId}>
+                          <div className="opinion-share-head">
+                            <span className="opinion-share-name">{share.name}</span>
+                            <span className="opinion-share-percent">{share.percent}%</span>
+                          </div>
+                          <div className="opinion-share-bar-wrap">
+                            <div className="opinion-share-bar" style={{ width: `${share.percent}%`, background: color }} />
+                          </div>
+                          <p className="opinion-share-evidence">{share.evidence.join(" · ")}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
                   <div className="consensus-list">
                     {result.personaDecisions.map((decision) => (
                       <p key={decision.name} className="consensus-item">

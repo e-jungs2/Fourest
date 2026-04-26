@@ -1,7 +1,7 @@
 import { generateText } from "@/lib/gemini";
 import { generateMessages, type AgentMessage, type Persona } from "@/lib/travel";
 
-const MAX_NEGOTIATION_CYCLES = 5;
+const MAX_NEGOTIATION_CYCLES = 2;
 
 function speechActForTurn(turnIndex: number, personaCount: number, totalTurns: number): AgentMessage["speechAct"] {
   const cycleIndex = Math.floor(turnIndex / personaCount);
@@ -19,6 +19,23 @@ function cleanReply(text: string) {
     .trim();
 }
 
+function speakingPattern(persona: Persona) {
+  const profile = [...persona.preferences, ...persona.priorities, ...persona.constraints, persona.summary].join(" ");
+  if (/맛집|식사|음식|미식|저녁/.test(profile)) {
+    return "먹을 곳을 먼저 콕 집어 말한다. 배고픔, 웨이팅, 예약 얘기를 자연스럽게 섞고 질문으로 끝내도 좋다.";
+  }
+  if (/카페|사진|분위기|야경|예쁜|감성/.test(profile)) {
+    return "장면이 그려지게 말한다. 카페, 사진, 풍경, 쉬는 타이밍을 먼저 떠올리고 부드럽게 제안한다.";
+  }
+  if (/로컬|골목|시장|현지|탐방|즉흥/.test(profile)) {
+    return "대표 코스만 따라가는 걸 아쉬워한다. '여기 근처 골목도 보자'처럼 새 선택지를 가볍게 던진다.";
+  }
+  if (/예산|가성비|비용|비싼|가격|체력|이동|동선/.test(profile)) {
+    return "현실적인 걱정을 먼저 짚는다. 비용, 이동, 체력 부담을 말하되 결론을 막지 말고 대안을 붙인다.";
+  }
+  return "친구들 의견을 받아서 중간안을 만든다. 단, 너무 사회자처럼 정리하지 말고 자기 취향도 한 줄 넣는다.";
+}
+
 function promptForPersona(
   persona: Persona,
   situation: string,
@@ -27,45 +44,39 @@ function promptForPersona(
   totalTurns: number,
   personaCount: number
 ) {
-  const cycleIndex = Math.floor(turnIndex / personaCount);
-  const turnInCycle = turnIndex % personaCount;
-  const isFinalCycle = turnIndex >= totalTurns - personaCount;
   const previous = previousMessages
     .map((message) => {
       const name = message.speakerId === persona.id ? persona.displayName : "다른 친구";
       return `- ${name}: ${message.content}`;
     })
     .join("\n");
+  const ownPrevious = previousMessages
+    .filter((message) => message.speakerId === persona.id)
+    .map((message) => message.content)
+    .join(" / ");
 
   return [
-    "너는 여행 의사결정 웹앱 triper에서 한 친구의 입장을 대신 말한다.",
-    "상황은 친구들끼리 단톡방에서 여행 어디로 갈지, 어떻게 갈지 편하게 얘기하는 장면이다.",
-    "너는 판정자, 검증자, 전문가, 사회자, 진행자가 아니다. 그냥 이 친구 한 명이다.",
-    "반드시 한국어로만 답한다.",
-    "친구 단톡방 말투로 자연스럽게 말한다. 너무 공손하거나 보고서처럼 쓰지 않는다.",
-    "80자에서 150자 사이로 답하고, 마크다운/목록/따옴표는 쓰지 않는다.",
-    "validator, feasibility, 합의안, 우선순위 반영, 만족도, 근거 같은 시스템 말투를 쓰지 않는다.",
-    "말투는 사람 같아야 한다. 예: '난 여기 괜찮은데', '근데 이건 좀 빡셀 듯', '그럼 이렇게 하면 어때?'",
-    "너무 쉽게 네네 하지 말고, 내 취향상 아쉬운 부분이 있으면 친구한테 말하듯 가볍게 짚는다.",
-    "다른 친구 의견을 들으면 '그건 좋다', '근데', '차라리'처럼 이어서 반응한다.",
+    "친구들끼리 여행 얘기하는 단톡방이다.",
+    `너는 ${persona.displayName} 한 명으로만 말한다. 판정자, 진행자, 전문가처럼 굴지 않는다.`,
+    "아래 페르소나를 보고 그 사람이 실제로 할 법한 말을 한 번만 한다.",
+    "반드시 한국어로 답하고, 마크다운/목록/따옴표는 쓰지 않는다.",
+    "40자에서 130자 사이로 자연스럽게 말한다.",
+    "시스템 말투 금지: validator, feasibility, 합의안, 우선순위 반영, 만족도, 근거, 조율 사이클 같은 말은 쓰지 않는다.",
+    "앞에서 이미 나온 말이나 자기 이전 말을 다른 단어로 반복하지 않는다.",
+    "문장 구조를 일부러 맞추지 말고, 페르소나가 신경 쓰는 것에 따라 자유롭게 말한다.",
     "",
-    `친구 이름: ${persona.displayName}`,
-    `이 친구 성향: ${persona.summary}`,
+    `페르소나: ${persona.summary}`,
     `좋아하는 것: ${persona.preferences.join(", ")}`,
-    `불편해하는 것: ${persona.constraints.join(", ")}`,
+    `싫거나 불편한 것: ${persona.constraints.join(", ")}`,
     `챙기고 싶은 것: ${persona.priorities.join(", ")}`,
-    `평소 판단 방식 참고: ${persona.decisionPolicy}`,
-    `말투 참고: ${persona.conversationStyle}`,
+    `말하는 성향: ${persona.conversationStyle}`,
+    `말할 때 자연스럽게 드러날 포인트: ${speakingPattern(persona)}`,
     "",
-    `사용자가 말한 여행 상황: ${situation}`,
-    `현재 대화 흐름: ${cycleIndex + 1}번째 바퀴, ${turnInCycle + 1}/${personaCount}번째 친구`,
-    previous ? `앞에서 친구들이 한 말:\n${previous}` : "앞에서 친구들이 한 말: 아직 없음",
+    `여행 상황: ${situation}`,
+    previous ? `앞 대화:\n${previous}` : "앞 대화: 아직 없음",
+    ownPrevious ? `내가 전에 한 말, 반복 금지:\n${ownPrevious}` : "",
     "",
-    isFinalCycle
-      ? "마지막 바퀴다. 최종 선언처럼 말하지 말고, 친구들 대화를 듣고 '이 정도면 난 좋아' 또는 '이 조건만 있으면 괜찮아' 정도로 자연스럽게 마무리해라."
-      : cycleIndex === 0
-        ? "첫 바퀴다. 이 친구가 끌리는 점이나 걱정되는 점을 먼저 편하게 말해라."
-        : "앞선 친구 말에 직접 반응하고, 내 취향을 섞어서 현실적인 제안을 하나 해라."
+    "지금 이 순간 이 친구가 할 법한 새 의견만 말해라."
   ].join("\n");
 }
 
@@ -96,8 +107,8 @@ export async function POST(request: Request) {
       speakerType: "persona",
       speechAct: speechActForTurn(index, personas.length, totalTurns),
       content,
-      supportLevel: Math.min(95, 72 + index * 5),
-      concernLevel: Math.max(8, 34 - index * 4)
+      supportLevel: 78,
+      concernLevel: 22
     });
   }
 

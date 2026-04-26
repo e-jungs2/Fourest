@@ -725,8 +725,9 @@ button { cursor: pointer; }
   font-size: 14px;
   color: var(--muted);
   margin: 0 0 32px;
-  max-width: 420px;
+  max-width: min(720px, 100%);
   line-height: 1.6;
+  white-space: nowrap;
 }
 
 .chat-suggestions {
@@ -1179,6 +1180,35 @@ button { cursor: pointer; }
   color: #ef4444;
 }
 
+.friend-inline-add,
+.friend-added-mark {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.friend-inline-add {
+  color: var(--muted);
+  background: transparent;
+}
+
+.persona-tree-item:hover .friend-inline-add {
+  background: var(--line);
+  color: var(--brand-strong);
+}
+
+.friend-added-mark {
+  color: var(--brand-strong);
+  background: var(--brand-bg);
+  font-size: 11px;
+}
+
 .me-badge {
   font-size: 10px;
   font-weight: 700;
@@ -1408,6 +1438,58 @@ button { cursor: pointer; }
 .consensus-item strong {
   color: var(--text);
   font-weight: 700;
+}
+
+.opinion-share-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.opinion-share-row {
+  display: grid;
+  gap: 5px;
+}
+
+.opinion-share-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.opinion-share-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.opinion-share-percent {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.opinion-share-bar-wrap {
+  height: 7px;
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.opinion-share-bar {
+  height: 100%;
+  border-radius: 999px;
+  transition: width .3s ease;
+}
+
+.opinion-share-evidence {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 /* Places */

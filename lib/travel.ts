@@ -251,12 +251,52 @@ export function generateMessages(personas: Persona[], situation: string): AgentM
 function buildMessage(persona: Persona, situation: string, index: number, personaCount: number, totalTurns: number) {
   const destination = situation || "이번 여행";
   const cycleIndex = Math.floor(index / personaCount);
+  const personaSlot = index % Math.max(1, personaCount);
   const finalCycle = index >= totalTurns - personaCount;
+  const profile = [...persona.preferences, ...persona.priorities, ...persona.constraints, persona.summary].join(" ");
   if (finalCycle) {
-    return `오케이, 이 정도면 난 좋아. 대신 ${persona.priorities[0]}은 꼭 하나 넣고, ${persona.constraints[0]}만 너무 심하지 않게 가자.`;
+    const endings = [
+      `난 이 정도면 괜찮아. ${persona.priorities[0]}만 빠지지 않으면 크게 불만 없을 듯.`,
+      `좋아, 대신 ${persona.constraints[0]} 이 부분만 너무 세게 안 가면 나도 찬성.`,
+      `그럼 그렇게 가자. 나는 ${persona.priorities[0]} 챙기는 쪽이면 충분해.`,
+      `오케이, 마지막으로 ${persona.constraints[0]}만 조심하면 편하게 갈 수 있을 것 같아.`
+    ];
+    return endings[personaSlot % endings.length];
+  }
+  if (/맛집|식사|음식|미식|저녁/.test(profile)) {
+    const lines = [
+      `${destination} 가면 일단 밥 한 끼는 제대로 잡자. 웨이팅 길면 힘드니까 예약 되는 맛집 위주로 보면 좋겠어.`,
+      `나는 일정 중간보다 저녁 맛집이 더 중요해. 낮 코스 조금 줄여도 마지막 식사는 실패 안 했으면 해.`,
+      `먹는 거 애매하면 여행 전체가 좀 흐려져서, 시장이나 현지 식당 하나는 꼭 넣자.`
+    ];
+    return lines[cycleIndex % lines.length];
+  }
+  if (/카페|사진|분위기|야경|예쁜|감성/.test(profile)) {
+    const lines = [
+      `난 빡빡하게 도는 것보다 사진 남길 만한 카페나 바다 쪽 시간이 있으면 좋겠어.`,
+      `그 코스 괜찮은데 중간에 예쁜 데서 쉬는 시간 없으면 좀 아쉬울 듯. 카페 하나 끼우자.`,
+      `마지막에 야경이나 전망 좋은 곳 하나 넣으면 기억에 남을 것 같아.`
+    ];
+    return lines[cycleIndex % lines.length];
+  }
+  if (/로컬|골목|시장|현지|탐방|즉흥/.test(profile)) {
+    const lines = [
+      `대표 코스만 돌면 좀 심심할 것 같아. 근처 시장이나 골목 하나만 슬쩍 넣어보자.`,
+      `나쁘진 않은데 너무 정석 코스야. 현지 느낌 나는 데 하나쯤은 가보고 싶어.`,
+      `그날 컨디션 봐서 작은 동네 코스 하나 열어두면 더 재밌을 듯.`
+    ];
+    return lines[cycleIndex % lines.length];
+  }
+  if (/예산|가성비|비용|비싼|가격|체력|이동|동선/.test(profile)) {
+    const lines = [
+      `좋은데 이동이 길면 다들 지칠 것 같아. 숙소 근처로 묶을 수 있는 코스부터 보자.`,
+      `비싼 건 한 번 정도면 괜찮은데, 계속 돈 쓰는 일정이면 좀 부담돼.`,
+      `나는 코스 자체보다 동선이 편한지가 더 신경 쓰여. 환승 많은 건 빼면 좋겠어.`
+    ];
+    return lines[cycleIndex % lines.length];
   }
   if (cycleIndex === 0) {
-    return `난 ${destination}이면 ${persona.preferences[0]} 쪽이 제일 끌려. ${persona.priorities[0]}도 같이 챙기면 꽤 재밌을 것 같아.`;
+    return `${destination} 괜찮다. 나는 ${persona.preferences[0]} 쪽이 있으면 좋고, 너무 욕심내지만 않으면 될 듯.`;
   }
   if (cycleIndex === 1) {
     return `그건 괜찮은데 ${persona.constraints[0]}은 좀 신경 쓰이긴 해. 하루에 한 번쯤은 숨 돌릴 시간 넣으면 좋겠어.`;
