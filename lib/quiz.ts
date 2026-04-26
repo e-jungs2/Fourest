@@ -20,7 +20,7 @@ export const quizQuestions: Array<{
     axis: "rest_vs_activity",
     title: "여행 하루가 어떻게 흘러가면 좋나요?",
     options: [
-      { id: "rest", label: "여유롭게 쉬는 시간이 꼭 있어야 해요", score: 25 },
+      { id: "rest", label: "자유롭게 쉬는 시간이 꼭 있어야 해요", score: 25 },
       { id: "balanced", label: "핵심 일정과 휴식이 반반이면 좋아요", score: 55 },
       { id: "active", label: "하루를 꽉 채워 움직이고 싶어요", score: 85 }
     ]
@@ -48,10 +48,10 @@ export const quizQuestions: Array<{
   {
     id: "comfort",
     axis: "comfort_need",
-    title: "이동과 숙소에서 가장 중요한 건?",
+    title: "이동과 숙소에서 가장 중요한 것은?",
     options: [
       { id: "cheap", label: "저렴하면 조금 불편해도 괜찮아요", score: 25 },
-      { id: "clean", label: "깔끔하고 이동이 무난하면 돼요", score: 60 },
+      { id: "clean", label: "깔끔하고 이동이 무난하면 좋아요", score: 60 },
       { id: "easy", label: "편한 동선과 숙소 컨디션이 중요해요", score: 90 }
     ]
   },
@@ -68,7 +68,7 @@ export const quizQuestions: Array<{
   {
     id: "local",
     axis: "local_experience",
-    title: "여행지에서 더 끌리는 경험은?",
+    title: "여행지에서는 어떤 경험을 선호하나요?",
     options: [
       { id: "classic", label: "대표 명소와 안정적인 코스", score: 30 },
       { id: "mix", label: "대표 코스와 로컬 경험을 적당히", score: 65 },
@@ -89,9 +89,9 @@ export function scoreQuiz(answers: Record<string, string>): QuizScores {
 export function describeScores(scores: QuizScores) {
   const traits: string[] = [];
   traits.push(scores.rest_vs_activity > 70 ? "활동적인 일정 선호" : scores.rest_vs_activity < 40 ? "휴식 중심 선호" : "균형 일정 선호");
-  traits.push(scores.food_interest > 70 ? "미식 중요도 높음" : "식사는 동선 우선");
-  traits.push(scores.budget_sensitivity > 70 ? "예산 민감" : "경험 가치 지불 가능");
-  traits.push(scores.comfort_need > 70 ? "편의와 숙소 컨디션 중시" : "불편함 감수 가능");
+  traits.push(scores.food_interest > 70 ? "미식 중요도가 높음" : "식사는 동선 우선");
+  traits.push(scores.budget_sensitivity > 70 ? "예산 민감" : "경험 가치에 지불 가능");
+  traits.push(scores.comfort_need > 70 ? "편한 동선과 숙소 컨디션 중시" : "불편함 감수 가능");
   traits.push(scores.planning_preference > 70 ? "계획 선호" : "자유 일정 선호");
   traits.push(scores.local_experience > 70 ? "로컬 경험 선호" : "대표 코스 선호");
   return traits;

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { generateJson } from "@/lib/gemini";
 import { mockPersonas } from "@/lib/mock";
+import { ensurePersonaMarkdown } from "@/lib/persona-md";
 import type { Participant, Persona } from "@/lib/types";
 
 export async function POST(request: Request) {
@@ -12,6 +13,7 @@ For each participant, create exactly one Persona JSON object.
 Return only a JSON array matching this TypeScript shape:
 {
   id:string, participantId:string, displayName:string, summary:string,
+  contextMarkdown:string,
   preferences:string[], constraints:string[], priorities:string[],
   decisionPolicy:{willSupportIf:string[], willObjectIf:string[], canCompromiseOn:string[]},
   conversationStyle:{tone:string, assertiveness:number, empathy:number},
@@ -21,6 +23,7 @@ Return only a JSON array matching this TypeScript shape:
 Participants:
 ${JSON.stringify(body.participants, null, 2)}
 `;
-  const personas = await generateJson<Persona[]>(prompt, fallback);
+  const generated = await generateJson<Persona[]>(prompt, fallback);
+  const personas = generated.map((persona) => ensurePersonaMarkdown(persona, body.participants || []));
   return NextResponse.json({ personas });
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { loadState, saveState } from "@/lib/storage";
 import type { AgentMessage, AppState, Itinerary } from "@/lib/types";
 
@@ -15,6 +15,18 @@ export default function ReportPage() {
   useEffect(() => {
     setState(loadState());
   }, []);
+
+  const researchSources = useMemo(() => {
+    const seen = new Set<string>();
+    return (state?.researchArtifacts || [])
+      .flatMap((artifact) => artifact.sources.map((source) => ({ ...source, artifactId: artifact.id, query: artifact.query })))
+      .filter((source) => {
+        const key = `${source.title}-${source.url || source.snippet}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }, [state?.researchArtifacts]);
 
   function persist(next: AppState) {
     setState(next);
@@ -65,7 +77,7 @@ export default function ReportPage() {
       <header className="topbar">
         <div className="brand">
           <h1>{itinerary.destination} 여행 의사결정 보고서</h1>
-          <p>페르소나 회의 결과를 바탕으로 생성된 일자별 일정표입니다.</p>
+          <p>페르소나 회의와 Agent 탐색 결과를 바탕으로 생성된 일자별 일정표입니다.</p>
         </div>
         <div className="row">
           <Link className="btn secondary" href="/workspace">
@@ -119,10 +131,33 @@ export default function ReportPage() {
         </div>
       </section>
 
+      <section className="panel" style={{ marginBottom: 16 }}>
+        <div className="section-title">
+          <h2>탐색 종합 정보</h2>
+          <span className="pill">{researchSources.length}개 출처</span>
+        </div>
+        <div className="grid">
+          {researchSources.length === 0 && <p className="muted">저장된 탐색 정보가 아직 없습니다.</p>}
+          {researchSources.map((source) => (
+            <div className="notice" key={`${source.artifactId}-${source.title}-${source.url || source.snippet}`}>
+              <strong>{source.title}</strong>
+              <p>{source.snippet}</p>
+              {source.url && source.url.startsWith("http") ? (
+                <a className="muted" href={source.url} target="_blank" rel="noreferrer">
+                  {source.url}
+                </a>
+              ) : (
+                source.url && <span className="muted">{source.url}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+
       <div className="grid two">
         <section className="panel">
           <div className="section-title">
-            <h2>조율 과정에서 생긴 절충</h2>
+            <h2>조율 과정에서 생긴 타협</h2>
           </div>
           <div className="grid">
             {itinerary.tradeoffs.map((tradeoff) => (
@@ -139,10 +174,10 @@ export default function ReportPage() {
           </div>
           <div className="field">
             <label>피드백</label>
-            <textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder="예: 둘째 날 저녁을 더 조용한 일정으로 바꿔줘" />
+            <textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder="예: 셋째 날 오후를 더 조용한 일정으로 바꿔줘" />
           </div>
           <button className="btn warn" onClick={regenerateWithFeedback} disabled={busy !== "idle" || !feedback.trim()}>
-            {busy === "idle" ? "재토론 후 보고서 갱신" : "재토론 중..."}
+            {busy === "idle" ? "피드백으로 보고서 갱신" : "재토론 중..."}
           </button>
         </section>
       </div>

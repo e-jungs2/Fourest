@@ -23,6 +23,7 @@ Return only JSON matching:
   consensusSummary:string
 }
 Use morning/afternoon/evening blocks, not exact hour schedules.
+Use researchSummary and researchRefs in the dialogue when they help explain route, food, transport, or lodging tradeoffs.
 
 Session:
 ${JSON.stringify(body.session, null, 2)}

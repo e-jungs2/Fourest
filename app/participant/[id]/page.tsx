@@ -54,8 +54,8 @@ export default function ParticipantPage() {
     <main className="shell">
       <header className="topbar">
         <div className="brand">
-          <h1>{participant.name}님의 여행 성향 테스트</h1>
-          <p>이 답변은 {participant.name}님을 대표하는 페르소나 생성에 직접 사용됩니다.</p>
+          <h1>{participant.name}의 여행 성향 테스트</h1>
+          <p>이 답변은 {participant.name}을 대표하는 페르소나 에이전트 생성에 사용됩니다.</p>
         </div>
         <button className="btn secondary" onClick={() => router.push("/workspace")}>
           워크스페이스로

@@ -9,6 +9,7 @@ export const emptyState: AppState = {
   personas: [],
   candidates: [],
   selectedDestination: "",
+  researchArtifacts: [],
   messages: [],
   itinerary: null
 };

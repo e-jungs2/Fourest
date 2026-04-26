@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { defaultScores } from "@/lib/quiz";
 import { createDemoSession, makeId } from "@/lib/mock";
 import { emptyState, saveState } from "@/lib/storage";
-import { defaultScores } from "@/lib/quiz";
 import type { DestinationStatus, Participant, TravelSession } from "@/lib/types";
 
 export default function HomePage() {
@@ -15,10 +15,10 @@ export default function HomePage() {
   const [scope, setScope] = useState("해외, 비행 4시간 이내");
   const [duration, setDuration] = useState("3박 4일");
   const [budget, setBudget] = useState("1인당 90만원");
-  const [requirements, setRequirements] = useState("맛집, 사진, 자유시간이 적당히 있고 너무 빡빡하지 않은 여행");
+  const [requirements, setRequirements] = useState("맛집, 사진, 자유시간을 적당히 넣고 너무 빡빡하지 않은 여행");
   const [participantCount, setParticipantCount] = useState(4);
   const [names, setNames] = useState(["민아", "준호", "소라", "해린"]);
-  const [maxCycles, setMaxCycles] = useState(5);
+  const [maxCycles, setMaxCycles] = useState(2);
 
   const participantInputs = useMemo(() => Array.from({ length: participantCount }, (_, index) => names[index] || ""), [participantCount, names]);
 
@@ -64,10 +64,10 @@ export default function HomePage() {
       <header className="topbar">
         <div className="brand">
           <h1>Persona Trip Council</h1>
-          <p>참여자별 성향 테스트로 페르소나를 만들고, AI 회의로 여행지를 정합니다.</p>
+          <p>참여자별 성향 테스트로 페르소나 에이전트를 만들고, 실시간 협의로 여행지를 정합니다.</p>
         </div>
         <button className="btn secondary" onClick={loadDemo}>
-          친구여행 예시 불러오기
+          친구 여행 예시 불러오기
         </button>
       </header>
 
@@ -84,7 +84,7 @@ export default function HomePage() {
               <button className={`segment ${destinationStatus === "undecided" ? "active" : ""}`} onClick={() => setDestinationStatus("undecided")}>
                 <strong>아직 미정</strong>
                 <br />
-                <span className="muted">페르소나들이 후보지부터 토론</span>
+                <span className="muted">페르소나들이 후보지부터 논의</span>
               </button>
               <button className={`segment ${destinationStatus === "fixed" ? "active" : ""}`} onClick={() => setDestinationStatus("fixed")}>
                 <strong>이미 정함</strong>
@@ -134,7 +134,7 @@ export default function HomePage() {
               <input type="number" min={1} max={8} value={participantCount} onChange={(event) => setParticipantCount(Number(event.target.value))} />
             </div>
             <div className="field">
-              <label>최대 조율 횟수</label>
+              <label>최대 협의 라운드 수</label>
               <input type="number" min={1} max={5} value={maxCycles} onChange={(event) => setMaxCycles(Number(event.target.value))} />
             </div>
           </div>
@@ -160,9 +160,9 @@ export default function HomePage() {
           <div className="grid">
             <div className="card">1. 여행 기본 조건과 참여자를 입력합니다.</div>
             <div className="card">2. 참여자별 초대 링크처럼 보이는 테스트를 진행합니다.</div>
-            <div className="card">3. 각 사람을 대표하는 페르소나가 생성됩니다.</div>
-            <div className="card">4. 페르소나들이 목적지와 일정을 턴별로 조율합니다.</div>
-            <div className="card">5. 최종 일자별 일정표를 편집하고 피드백으로 재토론합니다.</div>
+            <div className="card">3. 각 사람을 대표하는 페르소나 에이전트가 생성됩니다.</div>
+            <div className="card">4. 페르소나들이 목적지와 일정을 라운드별로 협의합니다.</div>
+            <div className="card">5. 최종 일정표를 확인하고 피드백으로 다시 조정합니다.</div>
           </div>
         </aside>
       </div>

@@ -23,7 +23,7 @@ Return only JSON:
   "messages": AgentMessage[],
   "itinerary": Itinerary
 }
-AgentMessage fields: id,speakerId,speakerType,replyToId,targetId,speechAct,content,proposalDelta,supportLevel,concernLevel.
+AgentMessage fields: id,speakerId,speakerType,replyToId,targetId,speechAct,content,proposalDelta,researchSummary,researchRefs,supportLevel,concernLevel.
 Itinerary fields: destination,days,tradeoffs,personaSatisfaction,consensusSummary.
 
 Feedback: ${body.feedback}
