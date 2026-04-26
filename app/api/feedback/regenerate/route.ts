@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { calculatePersonaSatisfaction } from "@/lib/agent-dialogue";
 import { generateJson } from "@/lib/gemini";
 import { mockDialogue, mockItinerary } from "@/lib/mock";
 import type { AgentMessage, Itinerary, Persona, TravelSession } from "@/lib/types";
@@ -38,5 +39,6 @@ ${JSON.stringify(body.personas, null, 2)}
     messages: fallbackMessages,
     itinerary: fallbackItinerary
   });
+  result.itinerary.personaSatisfaction = calculatePersonaSatisfaction(body.personas, result.messages);
   return NextResponse.json(result);
 }

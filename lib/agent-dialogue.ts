@@ -190,3 +190,35 @@ function clampNumber(value: number | undefined, fallback: number) {
   if (typeof value !== "number" || Number.isNaN(value)) return fallback;
   return Math.max(0, Math.min(1, value));
 }
+
+/**
+ * Derives persona satisfaction scores from dialogue messages.
+ *
+ * Later messages carry more weight (a persona's final stance matters most).
+ * Formula: score = avgSupport * 100 * (1 - avgConcern * 0.35), clamped [50, 98].
+ * Personas with no messages default to 75.
+ */
+export function calculatePersonaSatisfaction(personas: Persona[], messages: AgentMessage[]): Record<string, number> {
+  return Object.fromEntries(
+    personas.map((persona) => {
+      const turns = messages.filter((m) => m.speakerType === "persona" && m.speakerId === persona.id);
+      if (turns.length === 0) return [persona.displayName, 75];
+
+      let totalWeight = 0;
+      let weightedSupport = 0;
+      let weightedConcern = 0;
+
+      turns.forEach((msg, idx) => {
+        const weight = idx + 1;
+        weightedSupport += msg.supportLevel * weight;
+        weightedConcern += msg.concernLevel * weight;
+        totalWeight += weight;
+      });
+
+      const avgSupport = weightedSupport / totalWeight;
+      const avgConcern = weightedConcern / totalWeight;
+      const score = Math.round(avgSupport * 100 * (1 - avgConcern * 0.35));
+      return [persona.displayName, Math.max(50, Math.min(98, score))];
+    })
+  );
+}

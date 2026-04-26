@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { calculatePersonaSatisfaction } from "@/lib/agent-dialogue";
 import { generateJson } from "@/lib/gemini";
 import { mockItinerary } from "@/lib/mock";
 import type { AgentMessage, Itinerary, Persona, TravelSession } from "@/lib/types";
@@ -33,5 +34,6 @@ ${JSON.stringify(body.messages, null, 2)}
 Destination: ${destination}
 `;
   const itinerary = await generateJson<Itinerary>(prompt, fallback);
+  itinerary.personaSatisfaction = calculatePersonaSatisfaction(body.personas, body.messages);
   return NextResponse.json({ itinerary });
 }
