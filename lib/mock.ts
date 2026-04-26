@@ -205,15 +205,24 @@ export function mockItinerary(session: TravelSession, personas: Persona[], desti
     destination,
     consensusSummary: `${destination}는 참여자들의 예산, 맛집, 사진, 휴식 요구를 균형 있게 반영한 선택입니다.`,
     tradeoffs: ["핵심 명소는 유지하되 이동이 긴 코스는 줄였습니다.", "맛집과 자유시간을 하루에 몰지 않고 분산했습니다."],
-    personaSatisfaction: Object.fromEntries(personas.map((persona, index) => [persona.displayName, 78 + index * 3])),
-    days: Array.from({ length: days }, (_, index) => ({
-      day: index + 1,
-      title: index === 0 ? "도착과 가벼운 적응" : index === days - 1 ? "마지막 쇼핑과 귀가" : "핵심 경험과 여유 조율",
-      morning: index === 0 ? "출발, 도착 후 숙소 근처로 이동" : index === days - 1 ? "느긋한 체크아웃과 근처 산책" : "대표 명소 1곳 방문",
-      afternoon: index === 0 ? "숙소 체크인, 근처 카페와 가벼운 산책" : index === days - 1 ? "기념품 쇼핑과 자유시간" : "사진 명소 또는 로컬 체험",
-      evening: index === 0 ? "현지 맛집 1곳에서 저녁, 무리 없는 복귀" : index === days - 1 ? "공항 이동 및 귀가" : "합의된 맛집과 짧은 야경 코스",
-      note: "이동 부담을 낮추고 각자 원하는 포인트를 하루에 하나 이상 반영했습니다."
-    }))
+    personaSatisfaction: Object.fromEntries(personas.map((persona, index) => [persona.id, 78 + index * 3])),
+    days: Array.from({ length: days }, (_, index) => {
+      const p0 = personas[0]?.id;
+      const p1 = personas[1]?.id;
+      const p2 = personas[2]?.id;
+      const p3 = personas[3]?.id;
+      return {
+        day: index + 1,
+        title: index === 0 ? "도착과 가벼운 적응" : index === days - 1 ? "마지막 쇼핑과 귀가" : "핵심 경험과 여유 조율",
+        morning: index === 0 ? "출발, 도착 후 숙소 근처로 이동" : index === days - 1 ? "느긋한 체크아웃과 근처 산책" : "대표 명소 1곳 방문",
+        afternoon: index === 0 ? "숙소 체크인, 근처 카페와 가벼운 산책" : index === days - 1 ? "기념품 쇼핑과 자유시간" : "사진 명소 또는 로컬 체험",
+        evening: index === 0 ? "현지 맛집 1곳에서 저녁, 무리 없는 복귀" : index === days - 1 ? "공항 이동 및 귀가" : "합의된 맛집과 짧은 야경 코스",
+        note: "이동 부담을 낮추고 각자 원하는 포인트를 하루에 하나 이상 반영했습니다.",
+        morningAttribution: (index === 0 ? [p0, p2] : [p1]).filter((x): x is string => Boolean(x)),
+        afternoonAttribution: (index === days - 1 ? [p3] : [p0, p1]).filter((x): x is string => Boolean(x)),
+        eveningAttribution: [p1, p3].filter((x): x is string => Boolean(x))
+      };
+    })
   };
 }
 

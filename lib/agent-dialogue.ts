@@ -190,3 +190,45 @@ function clampNumber(value: number | undefined, fallback: number) {
   if (typeof value !== "number" || Number.isNaN(value)) return fallback;
   return Math.max(0, Math.min(1, value));
 }
+
+/**
+ * Derives persona satisfaction scores from dialogue messages.
+ *
+ * Later messages carry more weight (a persona's final stance matters most).
+ * Formula: score = avgSupport * 100 * (1 - avgConcern * 0.35), clamped [50, 98].
+ * Personas with no messages default to 75.
+ */
+/**
+ * Derives persona satisfaction scores from dialogue messages.
+ *
+ * Keyed by persona.id (unique) — callers should look up displayName separately.
+ * Later messages carry more weight (linear ramp: turn N gets weight N).
+ * Formula: avgSupport * 100 * (1 - avgConcern * 0.35), clamped [50, 98].
+ * Personas with no messages default to 75.
+ * Invalid / non-finite supportLevel / concernLevel values are treated as 0.
+ */
+export function calculatePersonaSatisfaction(personas: Persona[], messages: AgentMessage[]): Record<string, number> {
+  return Object.fromEntries(
+    personas.map((persona) => {
+      const turns = messages.filter((m) => m.speakerType === "persona" && m.speakerId === persona.id);
+      if (turns.length === 0) return [persona.id, 75];
+
+      let totalWeight = 0;
+      let weightedSupport = 0;
+      let weightedConcern = 0;
+
+      turns.forEach((msg, idx) => {
+        const weight = idx + 1;
+        weightedSupport += clampNumber(msg.supportLevel, 0) * weight;
+        weightedConcern += clampNumber(msg.concernLevel, 0) * weight;
+        totalWeight += weight;
+      });
+
+      const avgSupport = weightedSupport / totalWeight;
+      const avgConcern = weightedConcern / totalWeight;
+      const raw = Math.round(avgSupport * 100 * (1 - avgConcern * 0.35));
+      const score = Number.isFinite(raw) ? raw : 75;
+      return [persona.id, Math.max(50, Math.min(98, score))];
+    })
+  );
+}

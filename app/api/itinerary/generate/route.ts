@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { calculatePersonaSatisfaction } from "@/lib/agent-dialogue";
 import { generateJson } from "@/lib/gemini";
 import { mockItinerary } from "@/lib/mock";
 import type { AgentMessage, Itinerary, Persona, TravelSession } from "@/lib/types";
@@ -12,17 +13,34 @@ export async function POST(request: Request) {
   };
   const destination = body.selectedDestination || body.session.destination || "추천 여행지";
   const fallback = mockItinerary(body.session, body.personas || [], destination);
+  const personaIds = (body.personas || []).map((p) => p.id).join(", ");
   const prompt = `
 Create a Korean day-block travel itinerary from a persona negotiation.
-Return only JSON matching:
+Return only JSON matching this exact shape:
 {
-  destination:string,
-  days:[{day:number,title:string,morning:string,afternoon:string,evening:string,note:string}],
-  tradeoffs:string[],
+  destination: string,
+  days: [{
+    day: number,
+    title: string,
+    morning: string,
+    afternoon: string,
+    evening: string,
+    note: string,
+    morningAttribution: string[],
+    afternoonAttribution: string[],
+    eveningAttribution: string[]
+  }],
+  tradeoffs: string[],
   personaSatisfaction: Record<string, number>,
-  consensusSummary:string
+  consensusSummary: string
 }
+
+Attribution arrays contain the persona IDs (from the list below) whose preferences or requests are
+directly reflected in that time block. Leave empty [] if no specific persona drove that block.
+Available persona IDs: [${personaIds}]
+
 Use morning/afternoon/evening blocks, not exact hour schedules.
+Write each block as 1-2 concise sentences in Korean.
 
 Session:
 ${JSON.stringify(body.session, null, 2)}
@@ -33,5 +51,6 @@ ${JSON.stringify(body.messages, null, 2)}
 Destination: ${destination}
 `;
   const itinerary = await generateJson<Itinerary>(prompt, fallback);
+  itinerary.personaSatisfaction = calculatePersonaSatisfaction(body.personas, body.messages);
   return NextResponse.json({ itinerary });
 }
