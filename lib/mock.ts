@@ -182,9 +182,9 @@ export function mockItinerary(session: TravelSession, personas: Persona[], desti
         afternoon: index === 0 ? "숙소 체크인, 근처 카페와 가벼운 산책" : index === days - 1 ? "기념품 쇼핑과 자유시간" : "사진 명소 또는 로컬 체험",
         evening: index === 0 ? "현지 맛집 1곳에서 저녁, 무리 없는 복귀" : index === days - 1 ? "공항 이동 및 귀가" : "합의된 맛집과 짧은 야경 코스",
         note: "이동 부담을 낮추고 각자 원하는 포인트를 하루에 하나 이상 반영했습니다.",
-        morningAttribution: index === 0 ? [p0, p2].filter(Boolean) as string[] : [p1].filter(Boolean) as string[],
-        afternoonAttribution: index === days - 1 ? [p3].filter(Boolean) as string[] : [p0, p1].filter(Boolean) as string[],
-        eveningAttribution: [p1, p3].filter(Boolean) as string[]
+        morningAttribution: (index === 0 ? [p0, p2] : [p1]).filter((x): x is string => Boolean(x)),
+        afternoonAttribution: (index === days - 1 ? [p3] : [p0, p1]).filter((x): x is string => Boolean(x)),
+        eveningAttribution: [p1, p3].filter((x): x is string => Boolean(x))
       };
     })
   };

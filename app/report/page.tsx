@@ -28,7 +28,7 @@ function personaInitial(displayName: string) {
 function parseActivities(text: string): string[] {
   if (!text) return [];
   const chunks = text
-    .split(/\.\s+|。\s*/)
+    .split(/(?<=[다요죠습니다!?。])\s+|\n+/)
     .map((s) => s.trim())
     .filter((s) => s.length > 3);
   return chunks.length > 1 ? chunks : [text];
@@ -94,7 +94,6 @@ export default function ReportPage() {
   const itinerary = state.itinerary;
   const personas = state.personas;
   const personaColorMap = Object.fromEntries(personas.map((p, i) => [p.id, personaColor(i)]));
-  const personaIndexMap = Object.fromEntries(personas.map((p, i) => [p.id, i]));
 
   return (
     <main className="shell">
@@ -158,7 +157,7 @@ export default function ReportPage() {
                   <div className="req-section">
                     <span className="req-label reflected">반영됨</span>
                     <div className="tag-row">
-                      {persona.priorities.map((p) => (
+                      {(persona.priorities ?? []).map((p) => (
                         <span className="tag green" key={p}>
                           {p}
                         </span>
@@ -168,7 +167,7 @@ export default function ReportPage() {
                   <div className="req-section">
                     <span className="req-label compromised">양보</span>
                     <div className="tag-row">
-                      {persona.decisionPolicy.canCompromiseOn.map((c) => (
+                      {(persona.decisionPolicy?.canCompromiseOn ?? []).map((c) => (
                         <span className="tag amber" key={c}>
                           {c}
                         </span>
@@ -256,21 +255,18 @@ export default function ReportPage() {
                         >
                           {activities.length > 1 ? (
                             <div className="activity-chips">
-                              {activities.map((act, i) => (
+                              {activities.map((act, i) => {
+                                const pid = attributions[i % attributions.length];
+                                const chipColor = pid ? personaColorMap[pid] : undefined;
+                                return (
                                 <span
                                   className="activity-chip"
                                   key={i}
-                                  style={
-                                    attributions[0] && personaColorMap[attributions[0]]
-                                      ? ({
-                                          "--chip-color": personaColorMap[attributions[0]]
-                                        } as React.CSSProperties)
-                                      : undefined
-                                  }
+                                  style={chipColor ? ({ "--chip-color": chipColor } as React.CSSProperties) : undefined}
                                 >
                                   {act}
                                 </span>
-                              ))}
+                              );})}
                             </div>
                           ) : (
                             day[key] || <span className="muted">미정</span>

@@ -387,9 +387,8 @@ a {
 .day-card .day-blocks {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0;
-  padding: 14px;
   gap: 12px;
+  padding: 14px;
 }
 
 .block-label {
