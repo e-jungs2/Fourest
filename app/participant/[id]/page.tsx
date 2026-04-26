@@ -31,9 +31,20 @@ export default function ParticipantPage() {
 
   useEffect(() => {
     const loaded = loadState();
-    if (!loaded.session && params.id.startsWith("me_")) {
+    if (params.id.startsWith("me_")) {
+      const existing = loaded.session?.participants.find((item) => item.id === params.id);
+      if (existing) {
+        setState(loaded);
+        return;
+      }
+
       const participant = emptyParticipant(params.id);
-      const session = {
+      const session = loaded.session
+        ? {
+            ...loaded.session,
+            participants: [...loaded.session.participants, participant]
+          }
+        : {
         id: `profile_${params.id}`,
         destinationStatus: "undecided" as const,
         destination: "",
@@ -45,6 +56,7 @@ export default function ParticipantPage() {
         participants: [participant],
         settings: { maxNegotiationCycles: 5, candidateCount: 3 }
       };
+
       const next = { ...loaded, session };
       saveState(next);
       setState(next);
