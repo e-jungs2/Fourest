@@ -315,10 +315,164 @@ a {
   padding: 12px;
 }
 
+/* ── Satisfaction bar ── */
+.satisfaction-bar {
+  height: 7px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.satisfaction-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+/* ── Compromise note (inside persona card) ── */
+.compromise-note {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+.compromise-label {
+  font-weight: 700;
+  color: var(--accent-2);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Day grid / card ── */
+.day-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.day-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--panel);
+}
+
+.day-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--accent);
+  color: #fff;
+}
+
+.day-num {
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.day-title-text {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.day-card .day-blocks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  padding: 14px;
+  gap: 12px;
+}
+
+.block-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+/* display mode — double-click to edit */
+.block-view {
+  min-height: 84px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.55;
+  cursor: default;
+  transition: border-color 0.15s, background 0.15s;
+  white-space: pre-wrap;
+}
+
+.block-view:hover {
+  border-color: var(--accent);
+  background: var(--soft);
+}
+
+/* edit mode textarea */
+.block-textarea {
+  width: 100%;
+  min-height: 84px;
+  border: 1.5px solid var(--accent);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ink);
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.55;
+  resize: vertical;
+  outline: none;
+}
+
+.day-note {
+  margin: 0;
+  padding: 10px 16px 12px;
+  font-size: 13px;
+  color: var(--muted);
+  border-top: 1px dashed var(--line);
+}
+
+/* ── Tradeoff card ── */
+.tradeoff-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: var(--warn);
+  border: 1px solid #f1d287;
+  border-left: 4px solid #d97706;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.tradeoff-icon {
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.tradeoff-card p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 @media (max-width: 900px) {
   .grid.two,
   .grid.three,
-  .day-blocks {
+  .day-blocks,
+  .day-card .day-blocks {
     grid-template-columns: 1fr;
   }
 
