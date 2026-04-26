@@ -103,7 +103,7 @@ export default function ReportPage() {
         <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 700 }}>페르소나별 만족도</h3>
         <div className="grid three">
           {state.personas.map((persona) => {
-            const score = itinerary.personaSatisfaction[persona.displayName] ?? 80;
+            const score = itinerary.personaSatisfaction[persona.id] ?? 80;
             const compromise = persona.decisionPolicy?.canCompromiseOn?.[0];
             return (
               <div className="card" key={persona.id} style={{ display: "grid", gap: 10 }}>

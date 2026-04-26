@@ -169,7 +169,7 @@ export function mockItinerary(session: TravelSession, personas: Persona[], desti
     destination,
     consensusSummary: `${destination}는 참여자들의 예산, 맛집, 사진, 휴식 요구를 균형 있게 반영한 선택입니다.`,
     tradeoffs: ["핵심 명소는 유지하되 이동이 긴 코스는 줄였습니다.", "맛집과 자유시간을 하루에 몰지 않고 분산했습니다."],
-    personaSatisfaction: Object.fromEntries(personas.map((persona, index) => [persona.displayName, 78 + index * 3])),
+    personaSatisfaction: Object.fromEntries(personas.map((persona, index) => [persona.id, 78 + index * 3])),
     days: Array.from({ length: days }, (_, index) => ({
       day: index + 1,
       title: index === 0 ? "도착과 가벼운 적응" : index === days - 1 ? "마지막 쇼핑과 귀가" : "핵심 경험과 여유 조율",
