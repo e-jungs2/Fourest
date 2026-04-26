@@ -15,9 +15,38 @@ export type QuizAxis =
   | "budget_sensitivity"
   | "comfort_need"
   | "planning_preference"
-  | "local_experience";
+  | "local_experience"
+  | "photo_mood_importance"
+  | "conflict_flexibility";
 
 export type QuizScores = Record<QuizAxis, number>;
+
+export type TravelerTypeId =
+  | "slow_healer"
+  | "active_explorer"
+  | "food_radar"
+  | "mood_collector"
+  | "budget_strategist"
+  | "stable_planner"
+  | "local_diver"
+  | "group_mediator";
+
+export type BasicInfo = {
+  gender: string;
+  ageGroup: string;
+  relationship: string;
+};
+
+export type TravelTypeResult = {
+  primaryType: string;
+  secondaryType: string;
+  oneLineSummary: string;
+  strengths: string[];
+  riskFactors: string[];
+  preferredDecisionStyle: string;
+  typeScores: Record<TravelerTypeId, number>;
+  axisScores: QuizScores;
+};
 
 export type TravelSettings = {
   maxNegotiationCycles: number;
@@ -27,10 +56,14 @@ export type TravelSettings = {
 export type Participant = {
   id: string;
   name: string;
-  basicInfo: string;
+  basicInfo: BasicInfo;
+  healthNote: string;
+  foodNote: string;
+  mobilityNote: string;
   personalRequests: string;
   quizAnswers: Record<string, string>;
   quizScores: QuizScores;
+  travelTypeResult: TravelTypeResult | null;
   completed: boolean;
 };
 

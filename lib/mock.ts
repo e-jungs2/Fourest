@@ -1,4 +1,4 @@
-import { describeScores, scoreQuiz } from "./quiz";
+import { buildTravelTypeResult, describeScores, scoreQuiz } from "./quiz";
 import type { AgentMessage, DestinationCandidate, Itinerary, Participant, Persona, TravelSession } from "./types";
 
 export function makeId(prefix: string) {
@@ -17,37 +17,61 @@ export function createDemoSession(): TravelSession {
     requirements: "친구 4명이 가는 졸업여행. 맛집, 사진, 적당한 자유시간이 중요하고 너무 빡빡한 일정은 피하고 싶음.",
     settings: { maxNegotiationCycles: 5, candidateCount: 3 },
     participants: [
-      participant("p_mina", "민아", "사진과 카페를 좋아함", "예쁜 장소와 야경은 꼭 있었으면 좋겠어.", {
-        pace: "balanced",
-        food: "nice",
-        budget: "balanced",
-        comfort: "clean",
-        planning: "outline",
-        local: "mix"
+      participant("p_mina", "민아", { gender: "여성", ageGroup: "20대", relationship: "친구" }, "사진과 카페를 좋아함", "디저트 선호", "환승 많은 코스는 싫어함", "예쁜 장소와 야경은 꼭 있었으면 좋겠어.", {
+        morning_plan: "keep_one",
+        one_empty_slot: "pretty_cafe",
+        dinner_choice: "split_food",
+        hotel_tradeoff: "unique_stay",
+        rainy_day: "rain_photo",
+        hidden_place: "check_reviews",
+        photo_delay: "photo_time",
+        budget_issue: "save_elsewhere",
+        planning_style: "rough_plan",
+        group_conflict: "one_each",
+        souvenir_time: "last_photo",
+        best_memory: "group_happy"
       }),
-      participant("p_jun", "준호", "맛집 탐방 담당", "하루 한 끼는 유명한 현지 맛집으로 가고 싶어.", {
-        pace: "active",
-        food: "core",
-        budget: "spend",
-        comfort: "clean",
-        planning: "planned",
-        local: "local"
+      participant("p_jun", "준호", { gender: "남성", ageGroup: "20대", relationship: "친구" }, "많이 걸어도 괜찮음", "현지 맛집 중요", "이동이 길어도 좋은 경험이면 수용", "하루 한 끼는 유명한 현지 맛집으로 가고 싶어.", {
+        morning_plan: "move_now",
+        one_empty_slot: "famous_spot",
+        dinner_choice: "wait_food",
+        hotel_tradeoff: "middle_hotel",
+        rainy_day: "food_tour",
+        hidden_place: "try_local",
+        photo_delay: "time_limit",
+        budget_issue: "worth_it",
+        planning_style: "must_book_food",
+        group_conflict: "my_pick",
+        souvenir_time: "last_food",
+        best_memory: "best_meal"
       }),
-      participant("p_sora", "소라", "예산을 신경 씀", "숙소와 항공이 너무 비싸지 않았으면 해.", {
-        pace: "balanced",
-        food: "nice",
-        budget: "save",
-        comfort: "cheap",
-        planning: "outline",
-        local: "classic"
+      participant("p_sora", "소라", { gender: "여성", ageGroup: "20대", relationship: "친구" }, "중간 휴식 필요", "무난한 음식 선호", "숙소와 관광지 동선이 단순한 것 선호", "너무 빡빡하지 않고 카페 시간이 있었으면 해.", {
+        morning_plan: "slow_cafe",
+        one_empty_slot: "rest_lobby",
+        dinner_choice: "nearby_food",
+        hotel_tradeoff: "central_hotel",
+        rainy_day: "hotel_rest",
+        hidden_place: "ask_group",
+        photo_delay: "photo_time",
+        budget_issue: "save_elsewhere",
+        planning_style: "rough_plan",
+        group_conflict: "one_each",
+        souvenir_time: "airport_early",
+        best_memory: "rested"
       }),
-      participant("p_hae", "해린", "휴식과 쇼핑 선호", "아침 일찍 시작하는 일정은 피하고 쇼핑 시간이 있으면 좋겠어.", {
-        pace: "rest",
-        food: "simple",
-        budget: "balanced",
-        comfort: "easy",
-        planning: "free",
-        local: "mix"
+      participant("p_hae", "해린", { gender: "여성", ageGroup: "20대", relationship: "친구" }, "휴식과 쇼핑 선호", "음식은 무난하면 됨", "너무 이른 이동은 피하고 싶음", "아침 일찍 시작하는 일정은 피하고 쇼핑 시간이 있으면 좋겠어.", {
+        morning_plan: "free_time",
+        one_empty_slot: "pretty_cafe",
+        dinner_choice: "split_food",
+        hotel_tradeoff: "middle_hotel",
+        rainy_day: "museum",
+        hidden_place: "ask_group",
+        photo_delay: "split_photo",
+        budget_issue: "save_elsewhere",
+        planning_style: "rough_plan",
+        group_conflict: "one_each",
+        souvenir_time: "souvenir",
+        best_memory: "group_happy"
       })
     ]
   };
@@ -56,17 +80,25 @@ export function createDemoSession(): TravelSession {
 function participant(
   id: string,
   name: string,
-  basicInfo: string,
+  basicInfo: Participant["basicInfo"],
+  healthNote: string,
+  foodNote: string,
+  mobilityNote: string,
   personalRequests: string,
   quizAnswers: Record<string, string>
 ): Participant {
+  const quizScores = scoreQuiz(quizAnswers);
   return {
     id,
     name,
     basicInfo,
+    healthNote,
+    foodNote,
+    mobilityNote,
     personalRequests,
     quizAnswers,
-    quizScores: scoreQuiz(quizAnswers),
+    quizScores,
+    travelTypeResult: buildTravelTypeResult(quizAnswers),
     completed: true
   };
 }
@@ -77,16 +109,20 @@ export function mockPersonas(participants: Participant[]): Persona[] {
     const active = item.quizScores.rest_vs_activity > 65;
     const budget = item.quizScores.budget_sensitivity > 70;
     const comfort = item.quizScores.comfort_need > 70;
+    const typeSummary = item.travelTypeResult ? `${item.travelTypeResult.primaryType} / ${item.travelTypeResult.secondaryType}` : traits.slice(0, 2).join(", ");
     return {
       id: `persona_${item.id}`,
       participantId: item.id,
       displayName: `${item.name} 페르소나`,
-      summary: `${item.name}을 대표하며 ${traits.slice(0, 3).join(", ")} 성향이 강합니다.`,
+      summary: `${item.name}을 대표하는 ${typeSummary} 성향의 여행 페르소나입니다.`,
       preferences: traits,
       constraints: [
         budget ? "예산 초과에 민감함" : "경험 만족도가 높으면 비용을 일부 허용",
         comfort ? "이동 편의와 숙소 컨디션 필요" : "일정상 필요한 이동은 수용 가능",
-        item.personalRequests || "개인 요청 없음"
+        item.healthNote || "체력 관련 특이사항 없음",
+        item.foodNote || "음식 관련 특이사항 없음",
+        item.mobilityNote || "이동 관련 특이사항 없음",
+        item.personalRequests || "개인적으로 중요한 것 없음"
       ],
       priorities: [
         active ? "활동 밀도" : "휴식 균형",
