@@ -17,15 +17,28 @@ export async function POST(request: Request) {
     content: `피드백 "${body.feedback}"을 반영하면, ${message.content}`
   }));
   const fallbackItinerary = mockItinerary(body.session, body.personas || [], destination);
+  const personaIds = (body.personas || []).map((p) => p.id).join(", ");
   const prompt = `
 Regenerate a Korean travel itinerary after user feedback.
 Return only JSON:
 {
   "messages": AgentMessage[],
-  "itinerary": Itinerary
+  "itinerary": {
+    destination: string,
+    days: [{
+      day: number, title: string,
+      morning: string, afternoon: string, evening: string, note: string,
+      morningAttribution: string[], afternoonAttribution: string[], eveningAttribution: string[]
+    }],
+    tradeoffs: string[],
+    personaSatisfaction: Record<string, number>,
+    consensusSummary: string
+  }
 }
 AgentMessage fields: id,speakerId,speakerType,replyToId,targetId,speechAct,content,proposalDelta,supportLevel,concernLevel.
-Itinerary fields: destination,days,tradeoffs,personaSatisfaction,consensusSummary.
+
+Attribution arrays contain persona IDs whose preferences are reflected in that block.
+Available persona IDs: [${personaIds}]
 
 Feedback: ${body.feedback}
 Current itinerary:

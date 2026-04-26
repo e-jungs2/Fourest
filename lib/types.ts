@@ -99,6 +99,9 @@ export type ItineraryDay = {
   afternoon: string;
   evening: string;
   note: string;
+  morningAttribution?: string[];
+  afternoonAttribution?: string[];
+  eveningAttribution?: string[];
 };
 
 export type Itinerary = {

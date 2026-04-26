@@ -9,11 +9,29 @@ type BusyState = "idle" | "feedback";
 type EditingBlock = { day: number; key: "morning" | "afternoon" | "evening" } | null;
 
 const TIME_LABELS = { morning: "🌅 오전", afternoon: "☀️ 오후", evening: "🌙 저녁" } as const;
+const PERSONA_COLORS = ["#0f766e", "#c2410c", "#1d4ed8", "#7c3aed", "#b45309", "#0369a1"];
 
-function satisfactionColor(score: number): string {
+function satisfactionColor(score: number) {
   if (score >= 80) return "var(--accent)";
   if (score >= 65) return "#d97706";
   return "#b42318";
+}
+
+function personaColor(idx: number) {
+  return PERSONA_COLORS[idx % PERSONA_COLORS.length];
+}
+
+function personaInitial(displayName: string) {
+  return displayName.replace(/\s*페르소나$/, "").charAt(0);
+}
+
+function parseActivities(text: string): string[] {
+  if (!text) return [];
+  const chunks = text
+    .split(/\.\s+|。\s*/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 3);
+  return chunks.length > 1 ? chunks : [text];
 }
 
 export default function ReportPage() {
@@ -48,12 +66,12 @@ export default function ReportPage() {
   async function regenerateWithFeedback() {
     if (!state?.session || !state.itinerary || !feedback.trim()) return;
     setBusy("feedback");
-    const response = await fetch("/api/feedback/regenerate", {
+    const res = await fetch("/api/feedback/regenerate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ session: state.session, personas: state.personas, itinerary: state.itinerary, feedback })
     });
-    const data = (await response.json()) as { messages: AgentMessage[]; itinerary: Itinerary };
+    const data = (await res.json()) as { messages: AgentMessage[]; itinerary: Itinerary };
     persist({ ...state, messages: [...state.messages, ...data.messages], itinerary: data.itinerary });
     setFeedback("");
     setBusy("idle");
@@ -74,6 +92,9 @@ export default function ReportPage() {
   }
 
   const itinerary = state.itinerary;
+  const personas = state.personas;
+  const personaColorMap = Object.fromEntries(personas.map((p, i) => [p.id, personaColor(i)]));
+  const personaIndexMap = Object.fromEntries(personas.map((p, i) => [p.id, i]));
 
   return (
     <main className="shell">
@@ -92,45 +113,69 @@ export default function ReportPage() {
         </div>
       </header>
 
-      {/* 결정 요약 + 페르소나별 만족도 */}
+      {/* 결정 요약 */}
       <section className="panel" style={{ marginBottom: 16 }}>
         <div className="section-title">
           <h2>결정 요약</h2>
           <span className="pill green">{state.selectedDestination || itinerary.destination}</span>
         </div>
-        <p style={{ margin: "0 0 20px" }}>{itinerary.consensusSummary}</p>
+        <p style={{ margin: 0 }}>{itinerary.consensusSummary}</p>
+      </section>
 
-        <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 700 }}>페르소나별 만족도</h3>
-        <div className="grid three">
-          {state.personas.map((persona) => {
+      {/* 요구사항 반영 현황 */}
+      <section className="panel" style={{ marginBottom: 16 }}>
+        <div className="section-title">
+          <h2>요구사항 반영 현황</h2>
+          <span className="pill">페르소나별 결과</span>
+        </div>
+        <div className="req-grid">
+          {personas.map((persona, idx) => {
             const score = itinerary.personaSatisfaction[persona.id] ?? 80;
-            const compromise = persona.decisionPolicy?.canCompromiseOn?.[0];
+            const color = personaColor(idx);
             return (
-              <div className="card" key={persona.id} style={{ display: "grid", gap: 10 }}>
-                <div>
-                  <strong style={{ display: "block", marginBottom: 4 }}>{persona.displayName}</strong>
-                  <p className="muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.4 }}>
-                    {persona.summary}
-                  </p>
+              <div className="req-card" key={persona.id} style={{ borderLeftColor: color }}>
+                <div className="req-header">
+                  <div className="persona-avatar" style={{ background: color }}>
+                    {personaInitial(persona.displayName)}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <strong style={{ display: "block", marginBottom: 2 }}>{persona.displayName}</strong>
+                    <span style={{ fontSize: 12, color: "var(--muted)", display: "block", lineHeight: 1.4 }}>
+                      {persona.summary}
+                    </span>
+                  </div>
+                  <div className="req-score-block">
+                    <span style={{ fontSize: 13, fontWeight: 700, color: satisfactionColor(score) }}>{score}%</span>
+                    <div className="satisfaction-bar">
+                      <div
+                        className="satisfaction-fill"
+                        style={{ width: `${score}%`, background: satisfactionColor(score) }}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>만족도</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: satisfactionColor(score) }}>{score}%</span>
+                <div className="req-body">
+                  <div className="req-section">
+                    <span className="req-label reflected">반영됨</span>
+                    <div className="tag-row">
+                      {persona.priorities.map((p) => (
+                        <span className="tag green" key={p}>
+                          {p}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                  <div className="satisfaction-bar">
-                    <div
-                      className="satisfaction-fill"
-                      style={{ width: `${score}%`, background: satisfactionColor(score) }}
-                    />
+                  <div className="req-section">
+                    <span className="req-label compromised">양보</span>
+                    <div className="tag-row">
+                      {persona.decisionPolicy.canCompromiseOn.map((c) => (
+                        <span className="tag amber" key={c}>
+                          {c}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                {compromise && (
-                  <div className="compromise-note">
-                    <span className="compromise-label">양보한 것</span>
-                    {compromise}
-                  </div>
-                )}
               </div>
             );
           })}
@@ -143,6 +188,21 @@ export default function ReportPage() {
           <h2>일자별 일정표</h2>
           <span className="pill orange">더블클릭으로 편집</span>
         </div>
+
+        {/* 페르소나 범례 */}
+        {personas.length > 0 && (
+          <div className="persona-legend">
+            {personas.map((p, i) => (
+              <span key={p.id} className="legend-item">
+                <span className="persona-dot" style={{ background: personaColor(i) }}>
+                  {personaInitial(p.displayName)}
+                </span>
+                <span style={{ fontSize: 12, color: "var(--muted)" }}>{p.displayName}</span>
+              </span>
+            ))}
+          </div>
+        )}
+
         <div className="day-grid">
           {itinerary.days.map((day) => (
             <div className="day-card" key={day.day}>
@@ -153,9 +213,33 @@ export default function ReportPage() {
               <div className="day-blocks">
                 {(["morning", "afternoon", "evening"] as const).map((key) => {
                   const isEditing = editing?.day === day.day && editing?.key === key;
+                  const attrKey = `${key}Attribution` as "morningAttribution" | "afternoonAttribution" | "eveningAttribution";
+                  const attributions = day[attrKey] ?? [];
+                  const activities = parseActivities(day[key]);
+
                   return (
                     <div className="block" key={key}>
-                      <label className="block-label">{TIME_LABELS[key]}</label>
+                      <div className="block-label-row">
+                        <label className="block-label">{TIME_LABELS[key]}</label>
+                        {attributions.length > 0 && (
+                          <div className="attribution-badges">
+                            {attributions.map((pid) => {
+                              const p = personas.find((x) => x.id === pid);
+                              if (!p) return null;
+                              return (
+                                <span
+                                  key={pid}
+                                  className="persona-dot"
+                                  style={{ background: personaColorMap[pid] }}
+                                  title={p.displayName}
+                                >
+                                  {personaInitial(p.displayName)}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                       {isEditing ? (
                         <textarea
                           ref={editRef}
@@ -170,7 +254,27 @@ export default function ReportPage() {
                           onDoubleClick={() => setEditing({ day: day.day, key })}
                           title="더블클릭으로 편집"
                         >
-                          {day[key] || <span className="muted">미정</span>}
+                          {activities.length > 1 ? (
+                            <div className="activity-chips">
+                              {activities.map((act, i) => (
+                                <span
+                                  className="activity-chip"
+                                  key={i}
+                                  style={
+                                    attributions[0] && personaColorMap[attributions[0]]
+                                      ? ({
+                                          "--chip-color": personaColorMap[attributions[0]]
+                                        } as React.CSSProperties)
+                                      : undefined
+                                  }
+                                >
+                                  {act}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            day[key] || <span className="muted">미정</span>
+                          )}
                         </div>
                       )}
                     </div>

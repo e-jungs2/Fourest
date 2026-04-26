@@ -443,6 +443,176 @@ a {
   border-top: 1px dashed var(--line);
 }
 
+/* ── Requirement reflection grid ── */
+.req-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.req-card {
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: var(--panel);
+  display: grid;
+  gap: 12px;
+}
+
+.req-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.persona-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.req-score-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.req-score-block .satisfaction-bar {
+  width: 72px;
+}
+
+.req-body {
+  display: grid;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+.req-section {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.req-label {
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 2px 7px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.req-label.reflected {
+  background: #dff3ea;
+  color: #0f5f4f;
+}
+
+.req-label.compromised {
+  background: #fff0df;
+  color: #8a3f08;
+}
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tag.green {
+  background: #dff3ea;
+  color: #0f5f4f;
+}
+
+.tag.amber {
+  background: #fff0df;
+  color: #8a3f08;
+}
+
+/* ── Persona legend (itinerary section) ── */
+.persona-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border-radius: 7px;
+  border: 1px solid var(--line);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Persona dot (attribution badge) ── */
+.persona-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* ── Block label row (label + attribution) ── */
+.block-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.attribution-badges {
+  display: flex;
+  gap: 4px;
+}
+
+/* ── Activity chips inside a block ── */
+.activity-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.activity-chip {
+  display: block;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--chip-color, var(--accent));
+  border-radius: 5px;
+  padding: 5px 9px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 /* ── Tradeoff card ── */
 .tradeoff-card {
   display: flex;
